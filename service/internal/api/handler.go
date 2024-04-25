@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	pathToFile = "./"
+	pathToHTMLFile = "./"
 )
 
 type handleRegister interface {
@@ -31,6 +31,6 @@ func (h *handleUser) Register(route *chi.Mux) {
 }
 
 func (h *handleUser) getHTMLPage(w http.ResponseWriter, req *http.Request) {
-	fs := http.FileServer(http.Dir(pathToFile))
+	fs := http.FileServer(http.Dir(pathToHTMLFile))
 	http.StripPrefix("/", fs).ServeHTTP(w, req)
 }

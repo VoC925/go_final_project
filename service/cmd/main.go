@@ -28,6 +28,7 @@ func main() {
 	go func() {
 		fmt.Println("---APP STARTED---")
 		if err := app.Start(); err != nil {
+			logrus.Error(err)
 			close(quitCh)
 		}
 	}()
@@ -43,6 +44,7 @@ func main() {
 }
 
 func init() {
+	// загрузка переменных окружения
 	if err := godotenv.Load(); err != nil {
 		logrus.Fatal("Error loading .env file")
 	}
