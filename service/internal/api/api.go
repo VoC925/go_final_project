@@ -1,16 +1,14 @@
 package api
 
 import (
+	"database/sql"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-)
-
-const (
-	pathToDB = "./scheduler.db"
+	_ "modernc.org/sqlite"
 )
 
 type App struct {
@@ -33,8 +31,8 @@ func (s *App) Start() error {
 		errApp error
 	)
 
-	if err := s.checkAndMigrateDb(); err != nil {
-		return errors.Wrap(err, "checkAndMigreteDb method failed")
+	if err := s.createAndMigrateDb(); err != nil {
+		return errors.Wrap(err, "checkAndMigrateDb method failed")
 	}
 
 	go func() {
@@ -42,7 +40,6 @@ func (s *App) Start() error {
 			"ListenAddr": s.server.Addr,
 		}).Info("server start")
 		if err := s.server.ListenAndServe(); err != nil {
-
 			errApp = err
 			s.Stop()
 		}
@@ -57,22 +54,29 @@ func (s *App) Stop() {
 	close(s.quitCh)
 }
 
-func (s *App) createDBFile(path string) (*os.File, error) {
-	dbFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0644)
+func (s *App) createAndMigrateDb() error {
+	pathToDB := os.Getenv("TODO_DBFILE")
+	dbFile, err := sql.Open("sqlite", pathToDB)
 	if err != nil {
-		return nil, errors.Wrap(err, "os.OpenFile() failed")
+		return errors.Wrap(err, "Open SQLite DB")
 	}
-	return dbFile, nil
-}
+	defer dbFile.Close()
 
-func (s *App) checkAndMigrateDb() error {
-	// проверка существования файла ДБ
-	if _, err := os.Stat(pathToDB); os.IsNotExist(err) {
-		dbFile, err := s.createDBFile(pathToDB)
-		if err != nil {
-			return errors.Wrap(err, "createDBFile")
-		}
-		defer dbFile.Close()
+	// создание таблицы tasks
+	_, err = dbFile.Exec(`CREATE TABLE IF NOT EXISTS scheduler (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	date VARCHAR(8) NOT NULL DEFAULT "",
+	title VARCHAR(128) NOT NULL DEFAULT "",
+	comment TEXT NOT NULL DEFAULT "",
+	repeat VARCHAR(128) NOT NULL DEFAULT ""
+);
+CREATE INDEX IF NOT EXISTS scheduler_date ON scheduler (date);`)
+
+	if err != nil {
+		return errors.Wrap(err, "DB Query")
 	}
+
+	logrus.Info("Migration Up of DB successfully done")
+
 	return nil
 }
