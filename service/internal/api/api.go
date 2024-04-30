@@ -1,11 +1,15 @@
 package api
 
 import (
+	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
 
+	"github.com/VoC925/go_final_project/service/internal/domain/task"
+	"github.com/go-chi/chi/v5"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	_ "modernc.org/sqlite"
@@ -16,14 +20,27 @@ type App struct {
 	quitCh chan struct{}
 }
 
-func NewApp(addr string, route http.Handler) *App {
+func NewApp(addr string) (*App, error) {
+	// БД
+	storageTask, err := task.NewSQLiteDB()
+	if err != nil {
+		logrus.Error(err)
+		return nil, errors.Wrap(err, "Open SQLite DB")
+	}
+	// сервис
+	serviceTask := task.NewService(storageTask)
+	// хендлеры
+	route := chi.NewRouter()
+	handlerTask := NewHandler(serviceTask)
+	handlerTask.Register(route)
+
 	return &App{
 		server: &http.Server{
 			Addr:    strings.Join([]string{":", addr}, ""),
 			Handler: route,
 		},
 		quitCh: make(chan struct{}),
-	}
+	}, nil
 }
 
 func (s *App) Start() error {
@@ -41,7 +58,7 @@ func (s *App) Start() error {
 		}).Info("server start")
 		if err := s.server.ListenAndServe(); err != nil {
 			errApp = err
-			s.Stop()
+			close(s.quitCh)
 		}
 	}()
 
@@ -50,8 +67,13 @@ func (s *App) Start() error {
 	return errApp
 }
 
-func (s *App) Stop() {
-	close(s.quitCh)
+// Stop останавливает работу сервиса
+func (s *App) Stop(ctx context.Context) {
+	if err := s.server.Shutdown(ctx); err != nil {
+		logrus.Error("can't stop server correctly")
+	}
+	fmt.Println("1")
+	defer close(s.quitCh)
 }
 
 func (s *App) createAndMigrateDb() error {

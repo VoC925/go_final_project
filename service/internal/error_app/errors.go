@@ -48,13 +48,14 @@ func NewError(code int, err error) *AppError {
 
 // функция для формирования http заголовков для ответа клиенту
 // в случае запроса, приведшего к ошибке
-func RequestError(w http.ResponseWriter, appErr *AppError) {
+func RequestError(w http.ResponseWriter, typeRequest string, appErr *AppError) {
 	w.Header().Set("Content-Type", "application/json")
 	// Добавление к ошибке префикса
 	appErr.WrapErr("request error")
 
 	logrus.WithFields(logrus.Fields{
-		"code": appErr.Code,
+		"method": typeRequest,
+		"code":   appErr.Code,
 	}).Error(appErr.Error())
 
 	// сереализация ошибки

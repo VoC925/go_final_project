@@ -1,13 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/VoC925/go_final_project/service/internal/api"
-	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -18,12 +20,16 @@ func main() {
 	)
 	// регистрация сигнала ОС
 	signal.Notify(signalCh, os.Interrupt)
-	// сервис
-	route := chi.NewRouter()
-	handler := api.NewHandler()
-	handler.Register(route)
+
 	port := os.Getenv("TODO_PORT")
-	app := api.NewApp(port, route)
+	app, err := api.NewApp(port)
+	if err != nil {
+		logrus.WithFields(logrus.Fields{
+			"port": port,
+		}).Error(errors.Wrap(err, "app"))
+		return
+	}
+
 	// горутина для запуска сервиса
 	go func() {
 		fmt.Println("---APP STARTED---")
@@ -35,7 +41,9 @@ func main() {
 	// горутина, слушащая сигнал ОС и завершающая работу сервиса
 	go func() {
 		<-signalCh
-		app.Stop()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+		app.Stop(ctx)
 		close(quitCh)
 	}()
 

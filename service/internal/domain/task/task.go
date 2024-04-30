@@ -1,11 +1,13 @@
 package task
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	errorsApp "github.com/VoC925/go_final_project/service/internal/error_app"
 	"github.com/pkg/errors"
 )
 
@@ -79,4 +81,76 @@ func defineReapeatValue(repeat string) (*repeatTasks, error) {
 	default:
 		return nil, fmt.Errorf("неподдерживаемый параметр repeat")
 	}
+}
+
+// Структура задачи
+type Task struct {
+	ID      int    `json:"id"`      // id задачи
+	Date    string `json:"date"`    // дата выполнения задачи
+	Title   string `json:"title"`   // название задачи
+	Comment string `json:"comment"` // дополнительный текст задачи
+	Repeat  string `json:"repeat"`  // периодичность выполнения задачи
+}
+
+// CreateTaskFromCreateTaskDTO создает структура на основе DTO
+func createTaskFromCreateTaskDTO(dto *CreateTaskDTO) *Task {
+	return &Task{
+		ID:      0,
+		Date:    dto.Date,
+		Title:   dto.Title,
+		Comment: dto.Comment,
+		Repeat:  dto.Repeat,
+	}
+}
+
+// структура задачи `Data Transfer Object`
+type CreateTaskDTO struct {
+	Date    string `json:"date"`
+	Title   string `json:"title"`
+	Comment string `json:"comment"`
+	Repeat  string `json:"repeat"`
+}
+
+// UnmarshalJSON десериализует данные из в структуру TaskDTO
+func (q *CreateTaskDTO) UnmarshalJSON(data []byte) error {
+	var taskDTO CreateTaskDTO
+	if err := json.Unmarshal(data, &taskDTO); err != nil {
+		return err
+	}
+	q.Date = taskDTO.Date
+	q.Title = taskDTO.Title
+	q.Comment = taskDTO.Comment
+	q.Repeat = taskDTO.Repeat
+	return nil
+}
+
+// Valiadate проверяет данные структуры
+func (q *CreateTaskDTO) Validate() error {
+	// поле Title
+	if q.Title == "" {
+		return errors.Wrap(errorsApp.ErrEmptyField, "title")
+	}
+	// поле Date
+	if q.Date == "" {
+		q.Date = time.Now().Format("20060102")
+	} else {
+		date, err := time.Parse("20060102", q.Date)
+		if err != nil {
+			return errors.Wrap(err, errorsApp.ErrInvalidData.Error())
+		}
+		timeNow := time.Now()
+		if date.Before(timeNow) {
+			switch q.Repeat {
+			case "":
+				q.Date = time.Now().Format("20060102")
+			default:
+				dateNext, err := NextDate(timeNow, date, q.Repeat)
+				if err != nil {
+					return err
+				}
+				q.Date = dateNext
+			}
+		}
+	}
+	return nil
 }
