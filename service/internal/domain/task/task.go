@@ -19,41 +19,47 @@ type repeatTasks struct {
 
 func NextDate(now time.Time, date time.Time, repeat string) (string, error) {
 	// валидация repeat
-	repeatVal, err := splitReapeatValue(repeat)
+	repeatVal, err := defineReapeatValue(repeat)
 	if err != nil {
 		return "", errors.Wrap(err, "splitReapeatValue() method")
 	}
 
+	var condition bool
+
 	switch repeatVal.typeRepeat {
 	case "d":
-		for {
-			newDate := date.AddDate(0, 0, repeatVal.period)
-			if newDate.After(now) {
-				return date.Format("20060102"), nil
+		for !condition {
+			date = date.AddDate(0, 0, repeatVal.period)
+			if date.After(now) {
+				condition = true
 			}
 		}
 	case "y":
-		for {
-			newYear := date.AddDate(repeatVal.period, 0, 0)
-			if newYear.After(now) {
-				return date.Format("20060102"), nil
+		for !condition {
+			date = date.AddDate(repeatVal.period, 0, 0)
+			if date.After(now) {
+				condition = true
 			}
 		}
 	default:
 		return "", fmt.Errorf("error with param: repeat")
 	}
+	return date.Format("20060102"), nil
 }
 
-func splitReapeatValue(repeat string) (*repeatTasks, error) {
-	parts := strings.Split(repeat, " ")
-	switch parts[0] {
-	case "d":
+func defineReapeatValue(repeat string) (*repeatTasks, error) {
+	switch repeat[0] {
+	case 'd':
+		parts := strings.Split(repeat, " ")
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("некорректно задан парамметр repeat")
+			return nil, fmt.Errorf("некорректно задан параметр repeat в формате <d _>")
 		}
 		repeat_days, err := strconv.Atoi(parts[1])
 		if err != nil {
 			return nil, err
+		}
+		if repeat_days <= 0 {
+			return nil, fmt.Errorf("число дней не может быть 0 или отрицательным")
 		}
 		if repeat_days > 400 {
 			return nil, fmt.Errorf("число дней не может быть больше 400")
@@ -62,12 +68,15 @@ func splitReapeatValue(repeat string) (*repeatTasks, error) {
 			typeRepeat: parts[0],
 			period:     repeat_days,
 		}, nil
-	case "y":
+	case 'y':
+		if len(repeat) != 1 {
+			return nil, fmt.Errorf("некорректно задан параметр repeat в формате <y>")
+		}
 		return &repeatTasks{
-			typeRepeat: parts[0],
+			typeRepeat: "y",
 			period:     1,
 		}, nil
 	default:
-		return nil, fmt.Errorf("неожиданный параметр repeat")
+		return nil, fmt.Errorf("неподдерживаемый параметр repeat")
 	}
 }

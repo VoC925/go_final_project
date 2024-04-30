@@ -2,8 +2,9 @@ package errorsApp
 
 import (
 	"encoding/json"
-	"fmt"
+	"io"
 	"net/http"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -15,33 +16,19 @@ var (
 	ErrInvalidData = errors.New("некорректное поле")
 )
 
-// интерфейс ошибок для HTTP ответов сервера
-type HTTPError interface {
-	// реализация интерфейса Stringer
-	Error() string
-	// маршалинг структуры ошибки в Json объект
-	Marshal() ([]byte, error)
-	// возвращение кода ошибки
-	Status() int
-	// добавить prefix
-	WrapErr(error) error
+// Структура ошибок HTTP сервера
+type AppError struct {
+	Code   int    `json:"code"`  // код ошибки
+	MsgErr string `json:"error"` // ошибка
 }
 
-// Структура, методы которой реализуюТ интерфейс HTTPError
-type appError struct {
-	Code int   `json:"code"`
-	Err  error `json:"error"`
+// метод, реализующий интерфейс error
+func (e *AppError) Error() string {
+	return e.MsgErr
 }
 
-func (e appError) Error() string {
-	return e.Err.Error()
-}
-
-func (e appError) Status() int {
-	return e.Code
-}
-
-func (e appError) Marshal() ([]byte, error) {
+// метод, сереализующий структуру ошибки в формат JSON
+func (e *AppError) Marshal() ([]byte, error) {
 	jsonData, err := json.Marshal(e)
 	if err != nil {
 		return nil, err
@@ -49,43 +36,36 @@ func (e appError) Marshal() ([]byte, error) {
 	return jsonData, nil
 }
 
-func (e appError) WrapErr(err error) error {
-	return errors.Wrap(e, err.Error())
+// метод, добавляющий префикс ошибки
+func (e *AppError) WrapErr(prefix string) {
+	e.MsgErr = strings.Join([]string{prefix, e.MsgErr}, ": ")
 }
 
 // конструктор структуры appError
-func NewError(code int, err error) appError {
-	return appError{Code: code, Err: err}
+func NewError(code int, err error) *AppError {
+	return &AppError{Code: code, MsgErr: err.Error()}
 }
-
-// Готовые ошибки
-// func ErrInvalidID() appError {
-// 	return appError{Code: http.StatusBadRequest, MsgError: "invalid ID"}
-// }
-
-// func ErrUnAuthorised() appError {
-// 	return appError{Code: http.StatusUnauthorized, MsgError: "Unautorised"}
-// }
 
 // функция для формирования http заголовков для ответа клиенту
 // в случае запроса, приведшего к ошибке
-func RequestError(w http.ResponseWriter, errApp HTTPError) {
+func RequestError(w http.ResponseWriter, appErr *AppError) {
 	w.Header().Set("Content-Type", "application/json")
-	// добавление ошибки
-	errApp.WrapErr(fmt.Errorf("request error"))
+	// Добавление к ошибке префикса
+	appErr.WrapErr("request error")
 
 	logrus.WithFields(logrus.Fields{
-		"code": errApp.Status(),
-	}).Error(errApp.Error())
+		"code": appErr.Code,
+	}).Error(appErr.Error())
 
-	jsonErr, err := errApp.Marshal()
+	// сереализация ошибки
+	jsonErr, err := appErr.Marshal()
 	if err != nil {
 		logrus.Errorf("Marshaling Error interface failed: %s", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Error marshal response error"))
 		return
 	}
-	w.WriteHeader(errApp.Status())
+	w.WriteHeader(appErr.Code)
 	if _, err := w.Write(jsonErr); err != nil {
 		logrus.Errorf("Error writing response: %s", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
@@ -94,7 +74,27 @@ func RequestError(w http.ResponseWriter, errApp HTTPError) {
 	}
 }
 
-func RequestOk(w http.ResponseWriter) {
+// функция для формирования http заголовков и ответа клиенту
+// в случае успешного запроса
+func RequestOk(w http.ResponseWriter, typeRequest string, bodyResponse io.Reader) {
+	// запись заголовков
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	// чтение ответа из io.Reader
+	data, err := io.ReadAll(bodyResponse)
+	if err != nil {
+		logrus.Errorf("Error writing response: %s", err.Error())
+		return
+	}
+	// ответ клиенту
+	if _, err := w.Write(data); err != nil {
+		logrus.Errorf("Error writing response: %s", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Error writing response"))
+		return
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"method": typeRequest,
+	}).Info("request to service")
 }

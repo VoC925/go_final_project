@@ -2,6 +2,9 @@ package api
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/VoC925/go_final_project/service/internal/domain/task"
@@ -11,7 +14,7 @@ import (
 )
 
 const (
-	pathToHTMLFile = "./"
+	pathToHTMLFile = "../web"
 )
 
 type handleRegister interface {
@@ -27,12 +30,13 @@ func NewHandler() handleRegister {
 }
 
 func (h *handleScheduler) Register(route *chi.Mux) {
-	route.Get("/", h.getHTMLPage)
-	route.Get("/api/nextdate", h.nextDateSchedule) // "api/nextdate?now=20240126&date=20240126&repeat=y"
+	route.Get("/*", h.getHTMLPage)
+	route.Get("/api/nextdate", h.nextDateSchedule)
 }
 
 func (h *handleScheduler) getHTMLPage(w http.ResponseWriter, req *http.Request) {
-	fs := http.FileServer(http.Dir(pathToHTMLFile))
+	path := filepath.Join(filepath.Dir(os.Args[0]), pathToHTMLFile)
+	fs := http.FileServer(http.Dir(path))
 	http.StripPrefix("/", fs).ServeHTTP(w, req)
 }
 
@@ -41,7 +45,7 @@ func (h *handleScheduler) nextDateSchedule(w http.ResponseWriter, req *http.Requ
 	var queryParams queryNextDateParams
 	if err := queryParams.parsingFromQuery(req); err != nil {
 		errorsApp.RequestError(w, errorsApp.NewError(
-			http.StatusInternalServerError,
+			http.StatusBadRequest,
 			errors.Wrap(err, "parsingFromQuery() method"),
 		))
 		return
@@ -59,13 +63,12 @@ func (h *handleScheduler) nextDateSchedule(w http.ResponseWriter, req *http.Requ
 		))
 		return
 	}
-	// dataJson, err := json.Marshal(usersFromDB)
-	// if err != nil {
-	// 	requestError(w, apperror.New(http.StatusInternalServerError, err.Error()))
-	// 	return
-	// }
-	errorsApp.RequestOk(w)
-	w.Write([]byte(nextDateOfTask))
+
+	errorsApp.RequestOk(
+		w,
+		http.MethodGet,
+		strings.NewReader(nextDateOfTask),
+	)
 }
 
 // структура для хранения параметров запроса
@@ -76,7 +79,6 @@ type queryNextDateParams struct {
 }
 
 func (q *queryNextDateParams) parsingFromQuery(r *http.Request) error {
-	var params queryNextDateParams
 	// параметр now
 	nowQuery := r.FormValue("now")
 	if nowQuery == "" {
@@ -86,7 +88,7 @@ func (q *queryNextDateParams) parsingFromQuery(r *http.Request) error {
 	if err != nil {
 		return errors.Wrap(err, errorsApp.ErrInvalidData.Error())
 	}
-	params.Now = nowQueryAsTime
+	q.Now = nowQueryAsTime
 	// параметр date
 	dateQuery := r.FormValue("date")
 	if dateQuery == "" {
@@ -96,12 +98,12 @@ func (q *queryNextDateParams) parsingFromQuery(r *http.Request) error {
 	if err != nil {
 		return errors.Wrap(err, errorsApp.ErrInvalidData.Error())
 	}
-	params.Date = dateQueryAsTime
+	q.Date = dateQueryAsTime
 	// параметр repeat
 	repeatQuery := r.FormValue("repeat")
 	if repeatQuery == "" {
 		return errors.Wrap(errorsApp.ErrEmptyField, "repeat")
 	}
-	params.Repeat = repeatQuery
+	q.Repeat = repeatQuery
 	return nil
 }
