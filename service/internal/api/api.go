@@ -1,9 +1,7 @@
 package api
 
 import (
-	"context"
 	"database/sql"
-	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -68,12 +66,8 @@ func (s *App) Start() error {
 }
 
 // Stop останавливает работу сервиса
-func (s *App) Stop(ctx context.Context) {
-	if err := s.server.Shutdown(ctx); err != nil {
-		logrus.Error("can't stop server correctly")
-	}
-	fmt.Println("1")
-	defer close(s.quitCh)
+func (s *App) Stop() {
+	close(s.quitCh)
 }
 
 func (s *App) createAndMigrateDb() error {

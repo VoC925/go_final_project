@@ -112,7 +112,7 @@ type CreateTaskDTO struct {
 }
 
 // UnmarshalJSON десериализует данные из в структуру TaskDTO
-func (q *CreateTaskDTO) UnmarshalJSON(data []byte) error {
+func (q *CreateTaskDTO) UnmarshalJSONToStruct(data []byte) error {
 	var taskDTO CreateTaskDTO
 	if err := json.Unmarshal(data, &taskDTO); err != nil {
 		return err
@@ -130,19 +130,22 @@ func (q *CreateTaskDTO) Validate() error {
 	if q.Title == "" {
 		return errors.Wrap(errorsApp.ErrEmptyField, "title")
 	}
+	timeNow := time.Now()
 	// поле Date
 	if q.Date == "" {
-		q.Date = time.Now().Format("20060102")
+		q.Date = timeNow.Format("20060102")
 	} else {
 		date, err := time.Parse("20060102", q.Date)
 		if err != nil {
 			return errors.Wrap(err, errorsApp.ErrInvalidData.Error())
 		}
-		timeNow := time.Now()
+		if q.Date == timeNow.Format("20060102") {
+			return nil
+		}
 		if date.Before(timeNow) {
 			switch q.Repeat {
 			case "":
-				q.Date = time.Now().Format("20060102")
+				q.Date = timeNow.Format("20060102")
 			default:
 				dateNext, err := NextDate(timeNow, date, q.Repeat)
 				if err != nil {

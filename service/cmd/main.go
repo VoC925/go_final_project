@@ -1,11 +1,9 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/signal"
-	"time"
 
 	"github.com/VoC925/go_final_project/service/internal/api"
 	"github.com/joho/godotenv"
@@ -41,9 +39,7 @@ func main() {
 	// горутина, слушащая сигнал ОС и завершающая работу сервиса
 	go func() {
 		<-signalCh
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-		defer cancel()
-		app.Stop(ctx)
+		app.Stop()
 		close(quitCh)
 	}()
 

@@ -136,7 +136,7 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 	defer req.Body.Close()
 	// указатель на структуру новой задачи TaskDTO
 	taskDTO := new(task.CreateTaskDTO)
-	if err := taskDTO.UnmarshalJSON(buf.Bytes()); err != nil {
+	if err := taskDTO.UnmarshalJSONToStruct(buf.Bytes()); err != nil {
 		errorsApp.RequestError(w, http.MethodPost, errorsApp.NewError(
 			http.StatusBadRequest,
 			errors.Wrap(err, "Unmarshal JSON"),
