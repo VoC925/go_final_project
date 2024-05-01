@@ -12,8 +12,8 @@ type Service interface {
 	// FindByID(context.Context, string) (*User, error)
 	// // поиск по email
 	// GetByEmail(context.Context, string) (*User, error)
-	// // Поиск всех пользователей
-	// FindAll(context.Context, QueryParams) ([]*User, error)
+	// Поиск задач
+	FindTasks(ctx context.Context, offset int, limit int) ([]*Task, error)
 	// Добавление новой задачи
 	InsertNewTask(context.Context, *CreateTaskDTO) (*Task, error)
 	// // Удаление
@@ -50,4 +50,17 @@ func (s *serviceTask) InsertNewTask(ctx context.Context, dto *CreateTaskDTO) (*T
 	newTask := createTaskFromCreateTaskDTO(dto)
 	newTask.ID = id
 	return newTask, nil
+}
+
+// FindTasks метод для поиска задач
+func (s *serviceTask) FindTasks(ctx context.Context, offset int, limit int) ([]*Task, error) {
+	// запрос к БД для поиска задач
+	tasks, err := s.db.Find(ctx, offset, limit)
+	if err != nil {
+		return nil, errors.Wrap(err, "find in DB")
+	}
+	if tasks == nil {
+		return []*Task{}, nil
+	}
+	return tasks, nil
 }

@@ -12,8 +12,9 @@ import (
 
 var (
 	// общие ошибки
-	ErrEmptyField  = errors.New("задано пустое поле")
-	ErrInvalidData = errors.New("некорректное поле")
+	ErrEmptyField         = errors.New("задано пустое поле")
+	ErrInvalidData        = errors.New("некорректное поле")
+	ErrInvalidQueryParams = errors.New("некорректное значение параметра")
 )
 
 // Структура ошибок HTTP сервера

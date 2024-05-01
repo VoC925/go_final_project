@@ -85,7 +85,7 @@ func defineReapeatValue(repeat string) (*repeatTasks, error) {
 
 // Структура задачи
 type Task struct {
-	ID      int    `json:"id"`      // id задачи
+	ID      string `json:"id"`      // id задачи
 	Date    string `json:"date"`    // дата выполнения задачи
 	Title   string `json:"title"`   // название задачи
 	Comment string `json:"comment"` // дополнительный текст задачи
@@ -95,7 +95,7 @@ type Task struct {
 // CreateTaskFromCreateTaskDTO создает структура на основе DTO
 func createTaskFromCreateTaskDTO(dto *CreateTaskDTO) *Task {
 	return &Task{
-		ID:      0,
+		ID:      "",
 		Date:    dto.Date,
 		Title:   dto.Title,
 		Comment: dto.Comment,

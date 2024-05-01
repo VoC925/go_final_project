@@ -3,9 +3,9 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	pathToHTMLFile = "../web"
+	pathToHTMLFile = "../web/index.html"
 )
 
 type handleRegister interface {
@@ -39,13 +39,17 @@ func (h *handleScheduler) Register(route *chi.Mux) {
 	route.Get("/*", h.getHTMLPage)
 	route.Get("/api/nextdate", h.nextDateSchedule)
 	route.Post("/api/task", h.handleAddTask)
+	route.Get("/api/tasks", h.handleGetTasks)
 }
 
 // getHTMLPage обработчик для загрузки фронтенда
 func (h *handleScheduler) getHTMLPage(w http.ResponseWriter, req *http.Request) {
-	path := filepath.Join(filepath.Dir(os.Args[0]), pathToHTMLFile)
-	fs := http.FileServer(http.Dir(path))
-	http.StripPrefix("/", fs).ServeHTTP(w, req)
+	if req.URL.Path == "/" {
+		http.ServeFile(w, req, pathToHTMLFile)
+		return
+	}
+	fs := http.FileServer(http.Dir(pathToHTMLFile))
+	fs.ServeHTTP(w, req)
 }
 
 // nextDateSchedule обработчик для получения следующей даты задачи
@@ -87,7 +91,7 @@ type queryNextDateParams struct {
 	Repeat string
 }
 
-// parsingFromQuery метод для получения парметров из запроса
+// parsingFromQuery метод для получения параметров из запроса
 func (q *queryNextDateParams) parsingFromQuery(r *http.Request) error {
 	// параметр now
 	nowQuery := r.FormValue("now")
@@ -154,7 +158,7 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 	}
 	// анонимная структура, содержащая id созданной задачи
 	idResponse := struct {
-		Id int `json:"id"`
+		Id string `json:"id"`
 	}{
 		Id: taskInserted.ID,
 	}
@@ -173,4 +177,89 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 		http.MethodPost,
 		strings.NewReader(string(jsonData)),
 	)
+}
+
+func (h *handleScheduler) handleGetTasks(w http.ResponseWriter, req *http.Request) {
+	var (
+		ctx         = req.Context()
+		queryParams queryGetTaskParams
+	)
+	// парсинг параметров запроса
+	if err := parseQueryParamsGetTasks(&queryParams, req); err != nil {
+		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
+			http.StatusBadRequest,
+			errors.Wrap(err, "parse query parametrs"),
+		))
+		return
+	}
+	fmt.Println(queryParams)
+	// сервис
+	tasks, err := h.service.FindTasks(ctx, queryParams.Offest, queryParams.Limit)
+	if err != nil {
+		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
+			http.StatusInternalServerError,
+			errors.Wrap(err, "service task"),
+		))
+		return
+	}
+	// анонимная структура, содержащая слайс Task
+	tasksResponse := struct {
+		Tasks []*task.Task `json:"tasks"`
+	}{
+		Tasks: tasks,
+	}
+	// получение JSON данных ответа, содержащего слайас задач
+	jsonData, err := json.Marshal(tasksResponse)
+	if err != nil {
+		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
+			http.StatusInternalServerError,
+			errors.Wrap(err, "marshal JSON"),
+		))
+		return
+	}
+
+	errorsApp.RequestOk(
+		w,
+		http.MethodGet,
+		strings.NewReader(string(jsonData)),
+	)
+}
+
+// структура для хранения параметров запроса по обработчику handleGetTasks
+type queryGetTaskParams struct {
+	Limit  int // количество записей на странице
+	Offest int // смещение записей
+}
+
+// parseQueryParamsGetTasks парсит параметры запроса из url.Values в структуру queryGetTaskParams
+func parseQueryParamsGetTasks(dest *queryGetTaskParams, r *http.Request) error {
+	// параметр limit
+	limitQuery := r.FormValue("limit")
+	if limitQuery == "" {
+		dest.Limit = 10
+	} else {
+		lim, err := strconv.Atoi(limitQuery)
+		if err != nil {
+			return err
+		}
+		if lim < 0 {
+			return errors.Wrap(errorsApp.ErrInvalidQueryParams, "limit < 0")
+		}
+		dest.Limit = lim
+	}
+	// параметр offset
+	offsetQuery := r.FormValue("offset")
+	if offsetQuery == "" {
+		dest.Offest = 0
+	} else {
+		offs, err := strconv.Atoi(offsetQuery)
+		if err != nil {
+			return err
+		}
+		if offs < 0 {
+			return errors.Wrap(errorsApp.ErrInvalidQueryParams, "offset < 0")
+		}
+		dest.Offest = offs
+	}
+	return nil
 }
