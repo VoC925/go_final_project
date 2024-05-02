@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
+	"time"
 )
 
 // интерфейс БД
 type Storage interface {
 	Insert(context.Context, *CreateTaskDTO) (string, error)
-	Find(ctx context.Context, offset int, limit int) ([]*Task, error)
+	Find(ctx context.Context, offset int, limit int, search string) ([]*Task, error)
 }
 
 type storageTask struct {
@@ -49,24 +51,66 @@ VALUES (:dateVal, :titleVal, :commentVal, :repeatVal)`
 }
 
 // Find метод для поиска задач в БД
-func (s *storageTask) Find(ctx context.Context, offset int, limit int) ([]*Task, error) {
-	q := `SELECT *
+func (s *storageTask) Find(ctx context.Context, offset int, limit int, search string) ([]*Task, error) {
+	var (
+		q     string    // SQL запрос
+		rows  *sql.Rows // результат запроса
+		tasks []*Task   // слайс задач
+	)
+
+	if search == "" {
+		// случай отсутствия параметра search
+		q = `SELECT *
 FROM scheduler
 ORDER BY date
-LIMIT :limitVal OFFSET :offsetVal`
-	rows, err := s.db.QueryContext(ctx, q,
-		sql.Named("limitVal", limit),
-		sql.Named("offsetVal", offset))
-	if err != nil {
-		return nil, err
+LIMIT :limitVal OFFSET :offsetVal;`
+		r, err := s.db.QueryContext(ctx, q,
+			sql.Named("limitVal", limit),
+			sql.Named("offsetVal", offset))
+		if err != nil {
+			return nil, err
+		}
+		rows = r
+	} else {
+		// случай наличия параметра search
+		time, isTime := searchIsTime(search)
+		switch isTime {
+		case true:
+			// параметр search - дата
+			search = time
+			q = `SELECT *
+FROM scheduler
+WHERE date = :searchVal
+LIMIT :limitVal;`
+			r, err := s.db.QueryContext(ctx, q,
+				sql.Named("searchVal", search),
+				sql.Named("limitVal", limit))
+			if err != nil {
+				return nil, err
+			}
+			rows = r
+		case false:
+			// параметр search - поиск по title/comment
+			q = `SELECT *
+FROM scheduler
+WHERE title LIKE '%' || :searchVal || '%' OR comment LIKE '%' || :searchVal || '%'
+ORDER BY date
+LIMIT :limitVal;`
+			r, err := s.db.QueryContext(ctx, q,
+				sql.Named("searchVal", search),
+				sql.Named("limitVal", limit))
+			if err != nil {
+				return nil, err
+			}
+			rows = r
+		}
 	}
-	defer rows.Close()
 
-	var tasks []*Task
+	defer rows.Close()
 
 	for rows.Next() {
 		t := Task{}
-		err = rows.Scan(&t.ID, &t.Date, &t.Title, &t.Comment, &t.Repeat)
+		err := rows.Scan(&t.ID, &t.Date, &t.Title, &t.Comment, &t.Repeat)
 		if err != nil {
 			return nil, err
 		}
@@ -76,4 +120,18 @@ LIMIT :limitVal OFFSET :offsetVal`
 		return nil, err
 	}
 	return tasks, nil
+}
+
+// searchIsTime определяет является ли запрос поиском даты
+func searchIsTime(s string) (string, bool) {
+	_, err := time.Parse("02.01.2006", s)
+	if err == nil {
+		var timePattern strings.Builder
+		parts := strings.Split(s, ".")
+		timePattern.WriteString(parts[2])
+		timePattern.WriteString(parts[1])
+		timePattern.WriteString(parts[0])
+		return timePattern.String(), true
+	}
+	return "", false
 }

@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	pathToHTMLFile = "../web/index.html"
+	webDir = "./web"
 )
 
 type handleRegister interface {
@@ -36,20 +36,12 @@ func NewHandler(s task.Service) handleRegister {
 }
 
 func (h *handleScheduler) Register(route *chi.Mux) {
-	route.Get("/*", h.getHTMLPage)
+	// загрузка фронтенда
+	route.Handle("/*", http.FileServer(http.Dir(webDir)))
+	// ручки
 	route.Get("/api/nextdate", h.nextDateSchedule)
 	route.Post("/api/task", h.handleAddTask)
 	route.Get("/api/tasks", h.handleGetTasks)
-}
-
-// getHTMLPage обработчик для загрузки фронтенда
-func (h *handleScheduler) getHTMLPage(w http.ResponseWriter, req *http.Request) {
-	if req.URL.Path == "/" {
-		http.ServeFile(w, req, pathToHTMLFile)
-		return
-	}
-	fs := http.FileServer(http.Dir(pathToHTMLFile))
-	fs.ServeHTTP(w, req)
 }
 
 // nextDateSchedule обработчик для получения следующей даты задачи
@@ -194,7 +186,7 @@ func (h *handleScheduler) handleGetTasks(w http.ResponseWriter, req *http.Reques
 	}
 	fmt.Println(queryParams)
 	// сервис
-	tasks, err := h.service.FindTasks(ctx, queryParams.Offest, queryParams.Limit)
+	tasks, err := h.service.FindTasks(ctx, queryParams.Offest, queryParams.Limit, queryParams.Search)
 	if err != nil {
 		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
 			http.StatusInternalServerError,
@@ -227,8 +219,9 @@ func (h *handleScheduler) handleGetTasks(w http.ResponseWriter, req *http.Reques
 
 // структура для хранения параметров запроса по обработчику handleGetTasks
 type queryGetTaskParams struct {
-	Limit  int // количество записей на странице
-	Offest int // смещение записей
+	Limit  int    // количество записей на странице
+	Offest int    // смещение записей
+	Search string // поиск в строке
 }
 
 // parseQueryParamsGetTasks парсит параметры запроса из url.Values в структуру queryGetTaskParams
@@ -261,5 +254,7 @@ func parseQueryParamsGetTasks(dest *queryGetTaskParams, r *http.Request) error {
 		}
 		dest.Offest = offs
 	}
+	// параметр search
+	dest.Search = r.FormValue("search")
 	return nil
 }

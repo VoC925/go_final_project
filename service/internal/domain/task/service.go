@@ -13,7 +13,7 @@ type Service interface {
 	// // поиск по email
 	// GetByEmail(context.Context, string) (*User, error)
 	// Поиск задач
-	FindTasks(ctx context.Context, offset int, limit int) ([]*Task, error)
+	FindTasks(ctx context.Context, offset int, limit int, search string) ([]*Task, error)
 	// Добавление новой задачи
 	InsertNewTask(context.Context, *CreateTaskDTO) (*Task, error)
 	// // Удаление
@@ -53,9 +53,9 @@ func (s *serviceTask) InsertNewTask(ctx context.Context, dto *CreateTaskDTO) (*T
 }
 
 // FindTasks метод для поиска задач
-func (s *serviceTask) FindTasks(ctx context.Context, offset int, limit int) ([]*Task, error) {
+func (s *serviceTask) FindTasks(ctx context.Context, offset int, limit int, search string) ([]*Task, error) {
 	// запрос к БД для поиска задач
-	tasks, err := s.db.Find(ctx, offset, limit)
+	tasks, err := s.db.Find(ctx, offset, limit, search)
 	if err != nil {
 		return nil, errors.Wrap(err, "find in DB")
 	}
