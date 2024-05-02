@@ -83,27 +83,8 @@ func defineReapeatValue(repeat string) (*repeatTasks, error) {
 	}
 }
 
-// Структура задачи
-type Task struct {
-	ID      string `json:"id"`      // id задачи
-	Date    string `json:"date"`    // дата выполнения задачи
-	Title   string `json:"title"`   // название задачи
-	Comment string `json:"comment"` // дополнительный текст задачи
-	Repeat  string `json:"repeat"`  // периодичность выполнения задачи
-}
-
-// CreateTaskFromCreateTaskDTO создает структура на основе DTO
-func createTaskFromCreateTaskDTO(dto *CreateTaskDTO) *Task {
-	return &Task{
-		ID:      "",
-		Date:    dto.Date,
-		Title:   dto.Title,
-		Comment: dto.Comment,
-		Repeat:  dto.Repeat,
-	}
-}
-
 // структура задачи `Data Transfer Object`
+// для передачи при создании новой задачи
 type CreateTaskDTO struct {
 	Date    string `json:"date"`
 	Title   string `json:"title"`
@@ -111,7 +92,7 @@ type CreateTaskDTO struct {
 	Repeat  string `json:"repeat"`
 }
 
-// UnmarshalJSON десериализует данные из в структуру TaskDTO
+// UnmarshalJSONToStruct десериализует данные из JSON в структуру TaskDTO
 func (q *CreateTaskDTO) UnmarshalJSONToStruct(data []byte) error {
 	var taskDTO CreateTaskDTO
 	if err := json.Unmarshal(data, &taskDTO); err != nil {
@@ -156,4 +137,85 @@ func (q *CreateTaskDTO) Validate() error {
 		}
 	}
 	return nil
+}
+
+// Структура задачи
+type Task struct {
+	ID      string `json:"id"`      // id задачи
+	Date    string `json:"date"`    // дата выполнения задачи
+	Title   string `json:"title"`   // название задачи
+	Comment string `json:"comment"` // дополнительный текст задачи
+	Repeat  string `json:"repeat"`  // периодичность выполнения задачи
+}
+
+// UnmarshalJSONToStruct десериализует данные из JSON в структуру Task
+func (t *Task) UnmarshalJSONToStruct(data []byte) error {
+	var task Task
+	if err := json.Unmarshal(data, &task); err != nil {
+		return err
+	}
+	t.ID = task.ID
+	t.Date = task.Date
+	t.Title = task.Title
+	t.Comment = task.Comment
+	t.Repeat = task.Repeat
+	return nil
+}
+
+// валидация данных структуры Task
+func (t *Task) Validate() error {
+	// валидация поля ID
+	if t.ID == "" {
+		return errors.Wrap(errorsApp.ErrEmptyField, "id")
+	}
+	if _, err := strconv.Atoi(t.ID); err != nil {
+		return errors.Wrap(errorsApp.ErrInvalidData, "id")
+	}
+	d := &decorator{
+		&CreateTaskDTO{
+			Date:    t.Date,
+			Title:   t.Title,
+			Comment: t.Comment,
+			Repeat:  t.Repeat,
+		},
+	}
+	// валидация  остальных полей структуры Task
+	if err := d.validateStruct(t); err != nil {
+		return err
+	}
+	return nil
+}
+
+// структура обертка, для использования
+// готового метода Validate() у структуры TaskDTO
+type decorator struct {
+	*CreateTaskDTO
+}
+
+// validateStruct валидирует поля date и title структуры Task
+// используя метод структуры CreateTaskDTO через структуру обертку decorator
+func (d *decorator) validateStruct(task *Task) error {
+	// валидация title и date
+	if err := d.Validate(); err != nil {
+		return err
+	}
+	task.Date = d.Date
+	// валидация repeat
+	if d.Repeat != "" {
+		if _, err := defineReapeatValue(d.Repeat); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// createTaskFromCreateTaskDTO создает структуру Task на основе TaskDTO
+func createTaskFromCreateTaskDTO(dto *CreateTaskDTO) *Task {
+	return &Task{
+		ID:      "",
+		Date:    dto.Date,
+		Title:   dto.Title,
+		Comment: dto.Comment,
+		Repeat:  dto.Repeat,
+	}
 }

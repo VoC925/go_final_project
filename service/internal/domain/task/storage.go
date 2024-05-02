@@ -7,12 +7,16 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	errorsApp "github.com/VoC925/go_final_project/service/internal/error_app"
 )
 
 // интерфейс БД
 type Storage interface {
 	Insert(context.Context, *CreateTaskDTO) (string, error)
 	Find(ctx context.Context, offset int, limit int, search string) ([]*Task, error)
+	FindByParamID(context.Context, string) (*Task, error)
+	Update(context.Context, *Task) error
 }
 
 type storageTask struct {
@@ -34,7 +38,7 @@ func NewSQLiteDB() (Storage, error) {
 // Insert метод добавления новой задачи в БД
 func (s *storageTask) Insert(ctx context.Context, task *CreateTaskDTO) (string, error) {
 	q := `INSERT INTO scheduler (date, title, comment, repeat)
-VALUES (:dateVal, :titleVal, :commentVal, :repeatVal)`
+VALUES (:dateVal, :titleVal, :commentVal, :repeatVal);`
 	res, err := s.db.ExecContext(ctx, q,
 		sql.Named("dateVal", task.Date),
 		sql.Named("titleVal", task.Title),
@@ -134,4 +138,43 @@ func searchIsTime(s string) (string, bool) {
 		return timePattern.String(), true
 	}
 	return "", false
+}
+
+func (s *storageTask) FindByParamID(ctx context.Context, id string) (*Task, error) {
+	q := `SELECT *
+FROM scheduler
+WHERE id = :paramVal;`
+	row := s.db.QueryRowContext(ctx, q, sql.Named("paramVal", id))
+	t := new(Task)
+	err := row.Scan(&t.ID, &t.Date, &t.Title, &t.Comment, &t.Repeat)
+	if err == sql.ErrNoRows {
+		return nil, errorsApp.ErrNoData
+	}
+	if err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+func (s *storageTask) Update(ctx context.Context, task *Task) error {
+	q := `UPDATE scheduler
+SET date = :dateVal, title = :titleVal, comment = :commentVal, repeat = :repeatVal 
+WHERE id = :idVal`
+	res, err := s.db.ExecContext(ctx, q,
+		sql.Named("dateVal", task.Date),
+		sql.Named("titleVal", task.Title),
+		sql.Named("commentVal", task.Comment),
+		sql.Named("repeatVal", task.Repeat),
+		sql.Named("idVal", task.ID))
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return errorsApp.ErrNoData
+	}
+	return nil
 }

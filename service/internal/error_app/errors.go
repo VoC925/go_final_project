@@ -2,8 +2,10 @@ package errorsApp
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -15,11 +17,12 @@ var (
 	ErrEmptyField         = errors.New("задано пустое поле")
 	ErrInvalidData        = errors.New("некорректное поле")
 	ErrInvalidQueryParams = errors.New("некорректное значение параметра")
+	ErrNoData             = errors.New("данные отсутствуют")
 )
 
 // Структура ошибок HTTP сервера
 type AppError struct {
-	Code   int    `json:"code"`  // код ошибки
+	Code   string `json:"code"`  // код ошибки
 	MsgErr string `json:"error"` // ошибка
 }
 
@@ -44,7 +47,7 @@ func (e *AppError) WrapErr(prefix string) {
 
 // конструктор структуры appError
 func NewError(code int, err error) *AppError {
-	return &AppError{Code: code, MsgErr: err.Error()}
+	return &AppError{Code: fmt.Sprint(code), MsgErr: err.Error()}
 }
 
 // функция для формирования http заголовков для ответа клиенту
@@ -67,7 +70,8 @@ func RequestError(w http.ResponseWriter, typeRequest string, appErr *AppError) {
 		w.Write([]byte("Error marshal response error"))
 		return
 	}
-	w.WriteHeader(appErr.Code)
+	code, _ := strconv.Atoi(appErr.Code)
+	w.WriteHeader(code)
 	if _, err := w.Write(jsonErr); err != nil {
 		logrus.Errorf("Error writing response: %s", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)

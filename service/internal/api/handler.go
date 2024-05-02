@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -38,10 +37,16 @@ func NewHandler(s task.Service) handleRegister {
 func (h *handleScheduler) Register(route *chi.Mux) {
 	// загрузка фронтенда
 	route.Handle("/*", http.FileServer(http.Dir(webDir)))
-	// ручки
+	// получение следующей даты задачи
 	route.Get("/api/nextdate", h.nextDateSchedule)
+	// добавление задачи
 	route.Post("/api/task", h.handleAddTask)
+	// получения списка задач
 	route.Get("/api/tasks", h.handleGetTasks)
+	// получение задачи по id
+	route.Get("/api/task", h.handleGetTaskByID)
+	// изменение существующей задачи
+	route.Put("/api/task", h.handleUpdateTask)
 }
 
 // nextDateSchedule обработчик для получения следующей даты задачи
@@ -184,7 +189,6 @@ func (h *handleScheduler) handleGetTasks(w http.ResponseWriter, req *http.Reques
 		))
 		return
 	}
-	fmt.Println(queryParams)
 	// сервис
 	tasks, err := h.service.FindTasks(ctx, queryParams.Offest, queryParams.Limit, queryParams.Search)
 	if err != nil {
@@ -200,7 +204,7 @@ func (h *handleScheduler) handleGetTasks(w http.ResponseWriter, req *http.Reques
 	}{
 		Tasks: tasks,
 	}
-	// получение JSON данных ответа, содержащего слайас задач
+	// получение JSON данных ответа, содержащего слайс задач
 	jsonData, err := json.Marshal(tasksResponse)
 	if err != nil {
 		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
@@ -257,4 +261,83 @@ func parseQueryParamsGetTasks(dest *queryGetTaskParams, r *http.Request) error {
 	// параметр search
 	dest.Search = r.FormValue("search")
 	return nil
+}
+
+func (h *handleScheduler) handleGetTaskByID(w http.ResponseWriter, req *http.Request) {
+	var (
+		ctx = req.Context()
+	)
+	// парсинг ID парметра
+	idQuery := req.FormValue("id")
+	if idQuery == "" {
+		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
+			http.StatusBadRequest,
+			errors.Wrap(errorsApp.ErrInvalidQueryParams, "ID"),
+		))
+		return
+	}
+	// сервис
+	task, err := h.service.FindTaskByParam(ctx, idQuery)
+	if err != nil {
+		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
+			http.StatusInternalServerError,
+			errors.Wrap(err, "service task"),
+		))
+		return
+	}
+	// получение JSON данных ответа, содержащего слайс задач
+	jsonData, err := json.Marshal(task)
+	if err != nil {
+		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
+			http.StatusInternalServerError,
+			errors.Wrap(err, "marshal JSON"),
+		))
+		return
+	}
+
+	errorsApp.RequestOk(
+		w,
+		http.MethodGet,
+		strings.NewReader(string(jsonData)),
+	)
+}
+
+func (h *handleScheduler) handleUpdateTask(w http.ResponseWriter, req *http.Request) {
+	var (
+		buf bytes.Buffer
+		ctx = req.Context()
+	)
+	// Чтение JSON из тела запроса
+	_, err := buf.ReadFrom(req.Body)
+	if err != nil {
+		errorsApp.RequestError(w, http.MethodPut, errorsApp.NewError(
+			http.StatusBadRequest,
+			errors.Wrap(err, "Read from request body"),
+		))
+		return
+	}
+	defer req.Body.Close()
+	// указатель на структуру новой задачи TaskDTO
+	task := new(task.Task)
+	if err := task.UnmarshalJSONToStruct(buf.Bytes()); err != nil {
+		errorsApp.RequestError(w, http.MethodPut, errorsApp.NewError(
+			http.StatusBadRequest,
+			errors.Wrap(err, "Unmarshal JSON"),
+		))
+		return
+	}
+	// сервис
+	if err := h.service.UpdateTask(ctx, task); err != nil {
+		errorsApp.RequestError(w, http.MethodPut, errorsApp.NewError(
+			http.StatusInternalServerError,
+			errors.Wrap(err, "service task"),
+		))
+		return
+	}
+
+	errorsApp.RequestOk(
+		w,
+		http.MethodPut,
+		strings.NewReader(string(`{}`)),
+	)
 }
