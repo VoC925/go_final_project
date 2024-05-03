@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	errorsApp "github.com/VoC925/go_final_project/service/internal/error_app"
+	"github.com/VoC925/go_final_project/service/internal/httpResponse"
 	"github.com/pkg/errors"
 )
 
@@ -109,7 +109,7 @@ func (q *CreateTaskDTO) UnmarshalJSONToStruct(data []byte) error {
 func (q *CreateTaskDTO) Validate() error {
 	// поле Title
 	if q.Title == "" {
-		return errors.Wrap(errorsApp.ErrEmptyField, "title")
+		return errors.Wrap(httpResponse.ErrEmptyField, "title")
 	}
 	timeNow := time.Now()
 	// поле Date
@@ -118,7 +118,7 @@ func (q *CreateTaskDTO) Validate() error {
 	} else {
 		date, err := time.Parse("20060102", q.Date)
 		if err != nil {
-			return errors.Wrap(err, errorsApp.ErrInvalidData.Error())
+			return errors.Wrap(err, httpResponse.ErrInvalidData.Error())
 		}
 		if q.Date == timeNow.Format("20060102") {
 			return nil
@@ -166,10 +166,10 @@ func (t *Task) UnmarshalJSONToStruct(data []byte) error {
 func (t *Task) Validate() error {
 	// валидация поля ID
 	if t.ID == "" {
-		return errors.Wrap(errorsApp.ErrEmptyField, "id")
+		return errors.Wrap(httpResponse.ErrEmptyField, "id")
 	}
 	if _, err := strconv.Atoi(t.ID); err != nil {
-		return errors.Wrap(errorsApp.ErrInvalidData, "id")
+		return errors.Wrap(httpResponse.ErrInvalidData, "id")
 	}
 	d := &decorator{
 		&CreateTaskDTO{

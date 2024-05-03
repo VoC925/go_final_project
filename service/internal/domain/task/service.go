@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	errorsApp "github.com/VoC925/go_final_project/service/internal/error_app"
+	"github.com/VoC925/go_final_project/service/internal/httpResponse"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -74,7 +74,7 @@ func (s *serviceTask) FindTasks(ctx context.Context, offset int, limit int, sear
 func (s *serviceTask) FindTaskByParam(ctx context.Context, param string) (*Task, error) {
 	// запрос к БД для поиска задачи по параметру
 	task, err := s.db.FindByParamID(ctx, param)
-	if errors.Is(err, errorsApp.ErrNoData) {
+	if errors.Is(err, httpResponse.ErrNoData) {
 		return nil, fmt.Errorf("задача не найдена")
 	}
 	if err != nil {
@@ -90,7 +90,7 @@ func (s *serviceTask) UpdateTask(ctx context.Context, task *Task) error {
 	}
 	// запрос к БД для обновления данных задачи
 	err := s.db.Update(ctx, task)
-	if errors.Is(err, errorsApp.ErrNoData) {
+	if errors.Is(err, httpResponse.ErrNoData) {
 		return fmt.Errorf("задача не найдена")
 	}
 	if err != nil {
@@ -114,7 +114,7 @@ func (s *serviceTask) TaskDone(ctx context.Context, id string) error {
 	}
 	date, err := time.Parse("20060102", task.Date)
 	if err != nil {
-		return errors.Wrap(err, errorsApp.ErrInvalidData.Error())
+		return errors.Wrap(err, httpResponse.ErrInvalidData.Error())
 	}
 	// обновление даты завершения
 	nextDate, err := NextDate(time.Now(), date, task.Repeat)
@@ -132,7 +132,7 @@ func (s *serviceTask) TaskDone(ctx context.Context, id string) error {
 func (s *serviceTask) DeleteTask(ctx context.Context, id string) error {
 	// запрос к БД на удаление
 	err := s.db.Delete(ctx, id)
-	if errors.Is(err, errorsApp.ErrNoData) {
+	if errors.Is(err, httpResponse.ErrNoData) {
 		return fmt.Errorf("задача не найдена")
 	}
 	if err != nil {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	errorsApp "github.com/VoC925/go_final_project/service/internal/error_app"
+	"github.com/VoC925/go_final_project/service/internal/httpResponse"
 	"github.com/sirupsen/logrus"
 )
 
@@ -155,7 +155,7 @@ WHERE id = :paramVal;`
 	t := new(Task)
 	err := row.Scan(&t.ID, &t.Date, &t.Title, &t.Comment, &t.Repeat)
 	if err == sql.ErrNoRows {
-		return nil, errorsApp.ErrNoData
+		return nil, httpResponse.ErrNoData
 	}
 	if err != nil {
 		return nil, err
@@ -181,7 +181,7 @@ WHERE id = :idVal;`
 		return err
 	}
 	if rowsAffected == 0 {
-		return errorsApp.ErrNoData
+		return httpResponse.ErrNoData
 	}
 	return nil
 }
@@ -197,7 +197,7 @@ func (s *storageTask) Delete(ctx context.Context, id string) error {
 		return err
 	}
 	if rowsAffected == 0 {
-		return errorsApp.ErrNoData
+		return httpResponse.ErrNoData
 	}
 	return nil
 }

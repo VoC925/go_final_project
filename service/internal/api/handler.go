@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/VoC925/go_final_project/service/internal/domain/task"
-	errorsApp "github.com/VoC925/go_final_project/service/internal/error_app"
+	"github.com/VoC925/go_final_project/service/internal/httpResponse"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -57,12 +57,18 @@ func (h *handleScheduler) Register(route *chi.Mux) {
 
 // nextDateSchedule обработчик для получения следующей даты задачи
 func (h *handleScheduler) nextDateSchedule(w http.ResponseWriter, req *http.Request) {
+	var (
+		cid       = uuid.New().String() // уникальный id для логов
+		startTime = time.Now()          // время, относительно которого считается время выполнения запроса
+	)
 	// парсинг параметров запроса
 	var queryParams queryNextDateParams
 	if err := queryParams.parsingFromQuery(req); err != nil {
-		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
-			http.StatusBadRequest,
-			errors.Wrap(err, "parsingFromQuery() method"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusBadRequest,
+				errors.Wrap(err, "parsingFromQuery() method"),
+			),
 		))
 		return
 	}
@@ -73,18 +79,16 @@ func (h *handleScheduler) nextDateSchedule(w http.ResponseWriter, req *http.Requ
 		queryParams.Repeat,
 	)
 	if err != nil {
-		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
-			http.StatusInternalServerError,
-			errors.Wrap(err, "NextDate() method"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "NextDate() method"),
+			),
 		))
 		return
 	}
 
-	errorsApp.RequestOk(
-		w,
-		http.MethodGet,
-		strings.NewReader(nextDateOfTask),
-	)
+	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, []byte(nextDateOfTask), time.Since(startTime), nil))
 }
 
 // структура для хранения параметров запроса по обработчику nextDateSchedule
@@ -99,27 +103,27 @@ func (q *queryNextDateParams) parsingFromQuery(r *http.Request) error {
 	// параметр now
 	nowQuery := r.FormValue("now")
 	if nowQuery == "" {
-		return errors.Wrap(errorsApp.ErrEmptyField, "now")
+		return errors.Wrap(httpResponse.ErrEmptyField, "now")
 	}
 	nowQueryAsTime, err := time.Parse("20060102", nowQuery)
 	if err != nil {
-		return errors.Wrap(err, errorsApp.ErrInvalidData.Error())
+		return errors.Wrap(err, httpResponse.ErrInvalidData.Error())
 	}
 	q.Now = nowQueryAsTime
 	// параметр date
 	dateQuery := r.FormValue("date")
 	if dateQuery == "" {
-		return errors.Wrap(errorsApp.ErrEmptyField, "date")
+		return errors.Wrap(httpResponse.ErrEmptyField, "date")
 	}
 	dateQueryAsTime, err := time.Parse("20060102", dateQuery)
 	if err != nil {
-		return errors.Wrap(err, errorsApp.ErrInvalidData.Error())
+		return errors.Wrap(err, httpResponse.ErrInvalidData.Error())
 	}
 	q.Date = dateQueryAsTime
 	// параметр repeat
 	repeatQuery := r.FormValue("repeat")
 	if repeatQuery == "" {
-		return errors.Wrap(errorsApp.ErrEmptyField, "repeat")
+		return errors.Wrap(httpResponse.ErrEmptyField, "repeat")
 	}
 	q.Repeat = repeatQuery
 	return nil
@@ -128,15 +132,19 @@ func (q *queryNextDateParams) parsingFromQuery(r *http.Request) error {
 // handleAddTask обработчик для добавления новой задачи
 func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request) {
 	var (
-		buf bytes.Buffer
-		ctx = req.Context()
+		buf       bytes.Buffer
+		ctx       = req.Context()
+		cid       = uuid.New().String() // уникальный id для логов
+		startTime = time.Now()          // время, относительно которого считается время выполнения запроса
 	)
 	// Чтение JSON из тела запроса
 	_, err := buf.ReadFrom(req.Body)
 	if err != nil {
-		errorsApp.RequestError(w, http.MethodPost, errorsApp.NewError(
-			http.StatusBadRequest,
-			errors.Wrap(err, "Read from request body"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusBadRequest,
+				errors.Wrap(err, "Read from request body"),
+			),
 		))
 		return
 	}
@@ -144,18 +152,22 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 	// указатель на структуру новой задачи TaskDTO
 	taskDTO := new(task.CreateTaskDTO)
 	if err := taskDTO.UnmarshalJSONToStruct(buf.Bytes()); err != nil {
-		errorsApp.RequestError(w, http.MethodPost, errorsApp.NewError(
-			http.StatusBadRequest,
-			errors.Wrap(err, "Unmarshal JSON"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "Unmarshal JSON"),
+			),
 		))
 		return
 	}
 	// сервис
 	taskInserted, err := h.service.InsertNewTask(ctx, taskDTO)
 	if err != nil {
-		errorsApp.RequestError(w, http.MethodPost, errorsApp.NewError(
-			http.StatusInternalServerError,
-			errors.Wrap(err, "service task"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "service task"),
+			),
 		))
 		return
 	}
@@ -168,39 +180,43 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 	// получение JSON данных ответа, содержащего id созданной задачи
 	jsonData, err := json.Marshal(idResponse)
 	if err != nil {
-		errorsApp.RequestError(w, http.MethodPost, errorsApp.NewError(
-			http.StatusInternalServerError,
-			errors.Wrap(err, "marshal JSON"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "marshal JSON"),
+			),
 		))
 		return
 	}
 
-	errorsApp.RequestOk(
-		w,
-		http.MethodPost,
-		strings.NewReader(string(jsonData)),
-	)
+	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, jsonData, time.Since(startTime), nil))
 }
 
 func (h *handleScheduler) handleGetTasks(w http.ResponseWriter, req *http.Request) {
 	var (
 		ctx         = req.Context()
 		queryParams queryGetTaskParams
+		cid         = uuid.New().String() // уникальный id для логов
+		startTime   = time.Now()          // время, относительно которого считается время выполнения запроса
 	)
 	// парсинг параметров запроса
 	if err := parseQueryParamsGetTasks(&queryParams, req); err != nil {
-		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
-			http.StatusBadRequest,
-			errors.Wrap(err, "parse query parametrs"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusBadRequest,
+				errors.Wrap(err, "parse query parametrs"),
+			),
 		))
 		return
 	}
 	// сервис
 	tasks, err := h.service.FindTasks(ctx, queryParams.Offest, queryParams.Limit, queryParams.Search)
 	if err != nil {
-		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
-			http.StatusInternalServerError,
-			errors.Wrap(err, "service task"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "service task"),
+			),
 		))
 		return
 	}
@@ -213,18 +229,16 @@ func (h *handleScheduler) handleGetTasks(w http.ResponseWriter, req *http.Reques
 	// получение JSON данных ответа, содержащего слайс задач
 	jsonData, err := json.Marshal(tasksResponse)
 	if err != nil {
-		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
-			http.StatusInternalServerError,
-			errors.Wrap(err, "marshal JSON"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "marshal JSON"),
+			),
 		))
 		return
 	}
 
-	errorsApp.RequestOk(
-		w,
-		http.MethodGet,
-		strings.NewReader(string(jsonData)),
-	)
+	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, jsonData, time.Since(startTime), nil))
 }
 
 // структура для хранения параметров запроса по обработчику handleGetTasks
@@ -246,7 +260,7 @@ func parseQueryParamsGetTasks(dest *queryGetTaskParams, r *http.Request) error {
 			return err
 		}
 		if lim < 0 {
-			return errors.Wrap(errorsApp.ErrInvalidQueryParams, "limit < 0")
+			return errors.Wrap(httpResponse.ErrInvalidQueryParams, "limit < 0")
 		}
 		dest.Limit = lim
 	}
@@ -260,7 +274,7 @@ func parseQueryParamsGetTasks(dest *queryGetTaskParams, r *http.Request) error {
 			return err
 		}
 		if offs < 0 {
-			return errors.Wrap(errorsApp.ErrInvalidQueryParams, "offset < 0")
+			return errors.Wrap(httpResponse.ErrInvalidQueryParams, "offset < 0")
 		}
 		dest.Offest = offs
 	}
@@ -271,54 +285,62 @@ func parseQueryParamsGetTasks(dest *queryGetTaskParams, r *http.Request) error {
 
 func (h *handleScheduler) handleGetTaskByID(w http.ResponseWriter, req *http.Request) {
 	var (
-		ctx = req.Context()
+		ctx       = req.Context()
+		cid       = uuid.New().String() // уникальный id для логов
+		startTime = time.Now()          // время, относительно которого считается время выполнения запроса
 	)
 	// парсинг ID парметра
 	idQuery := req.FormValue("id")
 	if idQuery == "" {
-		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
-			http.StatusBadRequest,
-			errors.Wrap(errorsApp.ErrInvalidQueryParams, "ID"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusBadRequest,
+				errors.Wrap(httpResponse.ErrInvalidQueryParams, "ID"),
+			),
 		))
 		return
 	}
 	// сервис
 	task, err := h.service.FindTaskByParam(ctx, idQuery)
 	if err != nil {
-		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
-			http.StatusInternalServerError,
-			errors.Wrap(err, "service task"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "service task"),
+			),
 		))
 		return
 	}
 	// получение JSON данных ответа, содержащего слайс задач
 	jsonData, err := json.Marshal(task)
 	if err != nil {
-		errorsApp.RequestError(w, http.MethodGet, errorsApp.NewError(
-			http.StatusInternalServerError,
-			errors.Wrap(err, "marshal JSON"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "marshal JSON"),
+			),
 		))
 		return
 	}
 
-	errorsApp.RequestOk(
-		w,
-		http.MethodGet,
-		strings.NewReader(string(jsonData)),
-	)
+	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, jsonData, time.Since(startTime), nil))
 }
 
 func (h *handleScheduler) handleUpdateTask(w http.ResponseWriter, req *http.Request) {
 	var (
-		buf bytes.Buffer
-		ctx = req.Context()
+		buf       bytes.Buffer
+		ctx       = req.Context()
+		cid       = uuid.New().String() // уникальный id для логов
+		startTime = time.Now()          // время, относительно которого считается время выполнения запроса
 	)
 	// Чтение JSON из тела запроса
 	_, err := buf.ReadFrom(req.Body)
 	if err != nil {
-		errorsApp.RequestError(w, http.MethodPut, errorsApp.NewError(
-			http.StatusBadRequest,
-			errors.Wrap(err, "Read from request body"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusBadRequest,
+				errors.Wrap(err, "Read from request body"),
+			),
 		))
 		return
 	}
@@ -326,80 +348,86 @@ func (h *handleScheduler) handleUpdateTask(w http.ResponseWriter, req *http.Requ
 	// указатель на структуру новой задачи TaskDTO
 	task := new(task.Task)
 	if err := task.UnmarshalJSONToStruct(buf.Bytes()); err != nil {
-		errorsApp.RequestError(w, http.MethodPut, errorsApp.NewError(
-			http.StatusBadRequest,
-			errors.Wrap(err, "Unmarshal JSON"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "Unmarshal JSON"),
+			),
 		))
 		return
 	}
 	// сервис
 	if err := h.service.UpdateTask(ctx, task); err != nil {
-		errorsApp.RequestError(w, http.MethodPut, errorsApp.NewError(
-			http.StatusInternalServerError,
-			errors.Wrap(err, "service task"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "service task"),
+			),
 		))
 		return
 	}
 
-	errorsApp.RequestOk(
-		w,
-		http.MethodPut,
-		strings.NewReader(string(`{}`)),
-	)
+	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, []byte(`{}`), time.Since(startTime), nil))
 }
 
 func (h *handleScheduler) handleTaskDone(w http.ResponseWriter, req *http.Request) {
 	var (
-		ctx = req.Context()
+		ctx       = req.Context()
+		cid       = uuid.New().String() // уникальный id для логов
+		startTime = time.Now()          // время, относительно которого считается время выполнения запроса
 	)
 	// парсинг ID параметра
 	idQuery := req.FormValue("id")
 	if idQuery == "" {
-		errorsApp.RequestError(w, http.MethodPost, errorsApp.NewError(
-			http.StatusBadRequest,
-			errors.Wrap(errorsApp.ErrInvalidQueryParams, "ID"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusBadRequest,
+				errors.Wrap(httpResponse.ErrInvalidQueryParams, "ID"),
+			),
 		))
 		return
 	}
 	// сервис
 	if err := h.service.TaskDone(ctx, idQuery); err != nil {
-		errorsApp.RequestError(w, http.MethodPost, errorsApp.NewError(
-			http.StatusInternalServerError,
-			errors.Wrap(err, "service task"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "service task"),
+			),
 		))
 		return
 	}
-	errorsApp.RequestOk(
-		w,
-		http.MethodPost,
-		strings.NewReader(string(`{}`)),
-	)
+
+	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, []byte(`{}`), time.Since(startTime), nil))
 }
 
 func (h *handleScheduler) handleDeleteTask(w http.ResponseWriter, req *http.Request) {
 	var (
-		ctx = req.Context()
+		ctx       = req.Context()
+		cid       = uuid.New().String() // уникальный id для логов
+		startTime = time.Now()          // время, относительно которого считается время выполнения запроса
 	)
 	// парсинг ID параметра
 	idQuery := req.FormValue("id")
 	if idQuery == "" {
-		errorsApp.RequestError(w, http.MethodDelete, errorsApp.NewError(
-			http.StatusBadRequest,
-			errors.Wrap(errorsApp.ErrInvalidQueryParams, "ID"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusBadRequest,
+				errors.Wrap(httpResponse.ErrInvalidQueryParams, "ID"),
+			),
 		))
 		return
 	}
 	// сервис
 	if err := h.service.DeleteTask(ctx, idQuery); err != nil {
-		errorsApp.RequestError(w, http.MethodDelete, errorsApp.NewError(
-			http.StatusInternalServerError,
-			errors.Wrap(err, "service task"),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "service task"),
+			),
 		))
 		return
 	}
-	errorsApp.RequestOk(
-		w,
-		http.MethodDelete,
-		strings.NewReader(string(`{}`)),
-	)
+
+	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, []byte(`{}`), time.Since(startTime), nil))
 }

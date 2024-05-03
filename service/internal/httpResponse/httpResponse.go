@@ -1,12 +1,12 @@
-package errorsApp
+package httpResponse
 
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -50,57 +50,87 @@ func NewError(code int, err error) *AppError {
 	return &AppError{Code: fmt.Sprint(code), MsgErr: err.Error()}
 }
 
+// структура для формирования логов
+type logInfo struct {
+	cid           string        // id лога
+	r             *http.Request // запрос
+	bodyResoponse []byte        // тело ответа
+	timeResponse  time.Duration // время ответа
+	err           *AppError     // возможная ошибка
+}
+
+func NewLogInfo(cid string, r *http.Request, body []byte, time time.Duration, appErr *AppError) *logInfo {
+	return &logInfo{
+		cid:           cid,
+		r:             r,
+		bodyResoponse: body,
+		timeResponse:  time,
+		err:           appErr,
+	}
+}
+
 // функция для формирования http заголовков для ответа клиенту
 // в случае запроса, приведшего к ошибке
-func RequestError(w http.ResponseWriter, typeRequest string, appErr *AppError) {
+func Error(w http.ResponseWriter, info *logInfo) {
 	w.Header().Set("Content-Type", "application/json")
 	// Добавление к ошибке префикса
-	appErr.WrapErr("request error")
+	info.err.WrapErr("request error")
 
-	logrus.WithFields(logrus.Fields{
-		"method": typeRequest,
-		"code":   appErr.Code,
-	}).Error(appErr.Error())
-
-	// сереализация ошибки
-	jsonErr, err := appErr.Marshal()
+	// сереализация ошибки для клиента
+	msgErr := struct {
+		Msg string `json:"error"`
+	}{
+		Msg: "Произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте позже.",
+	}
+	jsonErr, err := json.Marshal(msgErr)
 	if err != nil {
-		logrus.Errorf("Marshaling Error interface failed: %s", err.Error())
+		logrus.Errorf("Marshaling Error failed: %s", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Error marshal response error"))
 		return
 	}
-	code, _ := strconv.Atoi(appErr.Code)
+	// запись заголовка
+	code, _ := strconv.Atoi(info.err.Code)
 	w.WriteHeader(code)
+	// запись ответа
 	if _, err := w.Write(jsonErr); err != nil {
 		logrus.Errorf("Error writing response: %s", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Error writing response"))
 		return
 	}
+	// логирование
+	logrus.WithFields(logrus.Fields{
+		"log_ID":        info.cid,
+		"URL":           info.r.URL.String(),
+		"method_HTTP":   info.r.Method,
+		"HTTP_Status":   info.err.Code,
+		"size_response": len(jsonErr),
+		"time_response": info.timeResponse.String(),
+	}).Error(info.err.MsgErr)
+
 }
 
 // функция для формирования http заголовков и ответа клиенту
 // в случае успешного запроса
-func RequestOk(w http.ResponseWriter, typeRequest string, bodyResponse io.Reader) {
+func Success(w http.ResponseWriter, info *logInfo) {
 	// запись заголовков
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	// чтение ответа из io.Reader
-	data, err := io.ReadAll(bodyResponse)
-	if err != nil {
-		logrus.Errorf("Error writing response: %s", err.Error())
-		return
-	}
 	// ответ клиенту
-	if _, err := w.Write(data); err != nil {
+	if _, err := w.Write(info.bodyResoponse); err != nil {
 		logrus.Errorf("Error writing response: %s", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Error writing response"))
 		return
 	}
-
+	// логирование
 	logrus.WithFields(logrus.Fields{
-		"method": typeRequest,
+		"log_ID":        info.cid,
+		"URL":           info.r.URL.String(),
+		"method_HTTP":   info.r.Method,
+		"HTTP_Status":   http.StatusOK,
+		"size_response": len(info.bodyResoponse),
+		"time_response": info.timeResponse.String(),
 	}).Info("request to service")
 }
