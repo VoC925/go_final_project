@@ -9,6 +9,7 @@ import (
 	"time"
 
 	errorsApp "github.com/VoC925/go_final_project/service/internal/error_app"
+	"github.com/sirupsen/logrus"
 )
 
 // интерфейс БД
@@ -17,6 +18,7 @@ type Storage interface {
 	Find(ctx context.Context, offset int, limit int, search string) ([]*Task, error)
 	FindByParamID(context.Context, string) (*Task, error)
 	Update(context.Context, *Task) error
+	Delete(context.Context, string) error
 }
 
 type storageTask struct {
@@ -30,6 +32,11 @@ func NewSQLiteDB() (Storage, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	logrus.WithFields(logrus.Fields{
+		"path": pathToDB,
+	}).Debug("sqlite DB connected")
+
 	return &storageTask{
 		db: dbFile,
 	}, nil
@@ -159,13 +166,29 @@ WHERE id = :paramVal;`
 func (s *storageTask) Update(ctx context.Context, task *Task) error {
 	q := `UPDATE scheduler
 SET date = :dateVal, title = :titleVal, comment = :commentVal, repeat = :repeatVal 
-WHERE id = :idVal`
+WHERE id = :idVal;`
 	res, err := s.db.ExecContext(ctx, q,
 		sql.Named("dateVal", task.Date),
 		sql.Named("titleVal", task.Title),
 		sql.Named("commentVal", task.Comment),
 		sql.Named("repeatVal", task.Repeat),
 		sql.Named("idVal", task.ID))
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return errorsApp.ErrNoData
+	}
+	return nil
+}
+
+func (s *storageTask) Delete(ctx context.Context, id string) error {
+	q := `DELETE FROM scheduler WHERE id=:idVal;`
+	res, err := s.db.ExecContext(ctx, q, sql.Named("idVal", id))
 	if err != nil {
 		return err
 	}

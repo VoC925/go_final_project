@@ -3,9 +3,11 @@ package task
 import (
 	"context"
 	"fmt"
+	"time"
 
 	errorsApp "github.com/VoC925/go_final_project/service/internal/error_app"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // интерфейс сервиса для CRUD операций
@@ -16,10 +18,12 @@ type Service interface {
 	FindTasks(ctx context.Context, offset int, limit int, search string) ([]*Task, error)
 	// Добавление новой задачи
 	InsertNewTask(context.Context, *CreateTaskDTO) (*Task, error)
-	// // Удаление
-	// Delete(context.Context, string) error
+	// Завершение задачи
+	TaskDone(context.Context, string) error
 	// Изменение данных существующей задачи Task
 	UpdateTask(context.Context, *Task) error
+	// Удаление существующей задачи
+	DeleteTask(context.Context, string) error
 }
 
 // структура, реализующая интерфейс Service
@@ -30,6 +34,7 @@ type serviceTask struct {
 
 // Конструктор
 func NewService(db Storage) Service {
+	logrus.Debug("service Task created")
 	return &serviceTask{
 		db: db,
 	}
@@ -90,6 +95,48 @@ func (s *serviceTask) UpdateTask(ctx context.Context, task *Task) error {
 	}
 	if err != nil {
 		return errors.Wrap(err, "update in DB")
+	}
+	return nil
+}
+
+func (s *serviceTask) TaskDone(ctx context.Context, id string) error {
+	// получение задачи по ID из БД
+	task, err := s.FindTaskByParam(ctx, id)
+	if err != nil {
+		return err
+	}
+	// удаление задачи при пустом поле repeat
+	if task.Repeat == "" {
+		if err := s.DeleteTask(ctx, task.ID); err != nil {
+			return err
+		}
+		return nil
+	}
+	date, err := time.Parse("20060102", task.Date)
+	if err != nil {
+		return errors.Wrap(err, errorsApp.ErrInvalidData.Error())
+	}
+	// обновление даты завершения
+	nextDate, err := NextDate(time.Now(), date, task.Repeat)
+	if err != nil {
+		return errors.Wrap(err, "NextDate()")
+	}
+	task.Date = nextDate
+	// обновление задачи в БД
+	if err := s.UpdateTask(ctx, task); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *serviceTask) DeleteTask(ctx context.Context, id string) error {
+	// запрос к БД на удаление
+	err := s.db.Delete(ctx, id)
+	if errors.Is(err, errorsApp.ErrNoData) {
+		return fmt.Errorf("задача не найдена")
+	}
+	if err != nil {
+		return errors.Wrap(err, "delete in DB")
 	}
 	return nil
 }

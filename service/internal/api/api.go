@@ -79,7 +79,7 @@ func (s *App) createAndMigrateDb() error {
 	defer dbFile.Close()
 
 	// создание таблицы tasks
-	_, err = dbFile.Exec(`CREATE TABLE IF NOT EXISTS scheduler (
+	res, err := dbFile.Exec(`CREATE TABLE IF NOT EXISTS scheduler (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,
 	date VARCHAR(8) NOT NULL DEFAULT "",
 	title VARCHAR(128) NOT NULL DEFAULT "",
@@ -91,8 +91,12 @@ CREATE INDEX IF NOT EXISTS scheduler_date ON scheduler (date);`)
 	if err != nil {
 		return errors.Wrap(err, "DB Query")
 	}
-
-	logrus.Info("Migration Up of DB successfully done")
-
+	r, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if r != 0 {
+		logrus.Info("Migration Up of DB successfully done")
+	}
 	return nil
 }

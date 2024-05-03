@@ -36,6 +36,7 @@ func main() {
 			close(quitCh)
 		}
 	}()
+
 	// горутина, слушащая сигнал ОС и завершающая работу сервиса
 	go func() {
 		<-signalCh
@@ -52,4 +53,14 @@ func init() {
 	if err := godotenv.Load(); err != nil {
 		logrus.Fatal("Error loading .env file")
 	}
+
+	// установка уровня логирования debug в случае установки переменной окружения
+	if os.Getenv("IS_DEBUG_LOG_LEVEL") == "true" {
+		logrus.SetLevel(logrus.DebugLevel)
+	}
+
+	logrus.WithFields(logrus.Fields{
+		"TODO_PORT":   os.Getenv("TODO_PORT"),
+		"TODO_DBFILE": os.Getenv("TODO_DBFILE"),
+	}).Debug("environment variable")
 }

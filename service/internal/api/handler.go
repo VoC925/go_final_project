@@ -12,6 +12,7 @@ import (
 	errorsApp "github.com/VoC925/go_final_project/service/internal/error_app"
 	"github.com/go-chi/chi/v5"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -29,6 +30,7 @@ type handleScheduler struct {
 }
 
 func NewHandler(s task.Service) handleRegister {
+	logrus.Debug("handler Task creted")
 	return &handleScheduler{
 		service: s,
 	}
@@ -47,6 +49,10 @@ func (h *handleScheduler) Register(route *chi.Mux) {
 	route.Get("/api/task", h.handleGetTaskByID)
 	// изменение существующей задачи
 	route.Put("/api/task", h.handleUpdateTask)
+	// заверешение существующей задачи
+	route.Post("/api/task/done", h.handleTaskDone)
+	// удаление существующей задачи
+	route.Delete("/api/task", h.handleDeleteTask)
 }
 
 // nextDateSchedule обработчик для получения следующей даты задачи
@@ -338,6 +344,62 @@ func (h *handleScheduler) handleUpdateTask(w http.ResponseWriter, req *http.Requ
 	errorsApp.RequestOk(
 		w,
 		http.MethodPut,
+		strings.NewReader(string(`{}`)),
+	)
+}
+
+func (h *handleScheduler) handleTaskDone(w http.ResponseWriter, req *http.Request) {
+	var (
+		ctx = req.Context()
+	)
+	// парсинг ID параметра
+	idQuery := req.FormValue("id")
+	if idQuery == "" {
+		errorsApp.RequestError(w, http.MethodPost, errorsApp.NewError(
+			http.StatusBadRequest,
+			errors.Wrap(errorsApp.ErrInvalidQueryParams, "ID"),
+		))
+		return
+	}
+	// сервис
+	if err := h.service.TaskDone(ctx, idQuery); err != nil {
+		errorsApp.RequestError(w, http.MethodPost, errorsApp.NewError(
+			http.StatusInternalServerError,
+			errors.Wrap(err, "service task"),
+		))
+		return
+	}
+	errorsApp.RequestOk(
+		w,
+		http.MethodPost,
+		strings.NewReader(string(`{}`)),
+	)
+}
+
+func (h *handleScheduler) handleDeleteTask(w http.ResponseWriter, req *http.Request) {
+	var (
+		ctx = req.Context()
+	)
+	// парсинг ID параметра
+	idQuery := req.FormValue("id")
+	if idQuery == "" {
+		errorsApp.RequestError(w, http.MethodDelete, errorsApp.NewError(
+			http.StatusBadRequest,
+			errors.Wrap(errorsApp.ErrInvalidQueryParams, "ID"),
+		))
+		return
+	}
+	// сервис
+	if err := h.service.DeleteTask(ctx, idQuery); err != nil {
+		errorsApp.RequestError(w, http.MethodDelete, errorsApp.NewError(
+			http.StatusInternalServerError,
+			errors.Wrap(err, "service task"),
+		))
+		return
+	}
+	errorsApp.RequestOk(
+		w,
+		http.MethodDelete,
 		strings.NewReader(string(`{}`)),
 	)
 }
