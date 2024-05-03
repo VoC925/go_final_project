@@ -50,6 +50,8 @@ func NextDate(now time.Time, date time.Time, repeat string) (string, error) {
 	return date.Format("20060102"), nil
 }
 
+// defineReapeatValue метод валидирует параметр repeat и в случае успеха
+// сереализует в структуру repeatTasks
 func defineReapeatValue(repeat string) (*repeatTasks, error) {
 	switch repeat[0] {
 	case 'd':
@@ -93,6 +95,7 @@ type CreateTaskDTO struct {
 	Repeat  string `json:"repeat"`
 }
 
+// реализация интерфейса Stringer
 func (t *CreateTaskDTO) String() string {
 	return fmt.Sprintf("date: %s | title: %s | comment: %s | repeat : %s", t.Date, t.Title, t.Comment, t.Repeat)
 }
@@ -156,6 +159,7 @@ type Task struct {
 	Repeat  string `json:"repeat"`  // периодичность выполнения задачи
 }
 
+// реализация интерфейса Stringer
 func (t *Task) String() string {
 	return fmt.Sprintf("id: %s | date: %s | title: %s | comment: %s | repeat : %s", t.ID, t.Date, t.Title, t.Comment, t.Repeat)
 }

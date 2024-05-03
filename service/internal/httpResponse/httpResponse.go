@@ -18,26 +18,18 @@ var (
 	ErrInvalidData        = errors.New("некорректное поле")
 	ErrInvalidQueryParams = errors.New("некорректное значение параметра")
 	ErrNoData             = errors.New("данные отсутствуют")
+	ErrUnAuth             = errors.New("ошибка аутентификации")
 )
 
 // Структура ошибок HTTP сервера
 type AppError struct {
 	Code   string `json:"code"`  // код ошибки
-	MsgErr string `json:"error"` // ошибка
+	MsgErr string `json:"error"` // сообщение ошибки
 }
 
 // метод, реализующий интерфейс error
 func (e *AppError) Error() string {
 	return e.MsgErr
-}
-
-// метод, сереализующий структуру ошибки в формат JSON
-func (e *AppError) Marshal() ([]byte, error) {
-	jsonData, err := json.Marshal(e)
-	if err != nil {
-		return nil, err
-	}
-	return jsonData, nil
 }
 
 // метод, добавляющий префикс ошибки
@@ -59,6 +51,7 @@ type logInfo struct {
 	err           *AppError     // возможная ошибка
 }
 
+// конструктор структуры логов logInfo
 func NewLogInfo(cid string, r *http.Request, body []byte, time time.Duration, appErr *AppError) *logInfo {
 	return &logInfo{
 		cid:           cid,
@@ -69,6 +62,10 @@ func NewLogInfo(cid string, r *http.Request, body []byte, time time.Duration, ap
 	}
 }
 
+type msgErr struct {
+	Msg string `json:"error"`
+}
+
 // функция для формирования http заголовков для ответа клиенту
 // в случае запроса, приведшего к ошибке
 func Error(w http.ResponseWriter, info *logInfo) {
@@ -77,12 +74,14 @@ func Error(w http.ResponseWriter, info *logInfo) {
 	info.err.WrapErr("request error")
 
 	// сереализация ошибки для клиента
-	msgErr := struct {
-		Msg string `json:"error"`
-	}{
-		Msg: "Произошла ошибка при обработке вашего запроса. Пожалуйста, попробуйте позже.",
+	var msg msgErr
+	// лсслучай когда ошибка - ошибка аутентификации
+	if info.err.Code == "401" {
+		msg.Msg = "Ошибка аутентификации"
 	}
-	jsonErr, err := json.Marshal(msgErr)
+	msg.Msg = "Произошла ошибка при обработке вашего запроса"
+	// сереализация ошибки
+	jsonErr, err := json.Marshal(msg)
 	if err != nil {
 		logrus.Errorf("Marshaling Error failed: %s", err.Error())
 		w.WriteHeader(http.StatusInternalServerError)

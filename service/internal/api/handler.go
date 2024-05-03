@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
 	"github.com/VoC925/go_final_project/service/internal/domain/task"
 	"github.com/VoC925/go_final_project/service/internal/httpResponse"
+	"github.com/VoC925/go_final_project/service/pkg"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -16,7 +18,7 @@ import (
 )
 
 const (
-	webDir = "./web"
+	webDir = "./web" // путь до фронтенда
 )
 
 type handleRegister interface {
@@ -39,20 +41,29 @@ func NewHandler(s task.Service) handleRegister {
 func (h *handleScheduler) Register(route *chi.Mux) {
 	// загрузка фронтенда
 	route.Handle("/*", http.FileServer(http.Dir(webDir)))
-	// получение следующей даты задачи
-	route.Get("/api/nextdate", h.nextDateSchedule)
-	// добавление задачи
-	route.Post("/api/task", h.handleAddTask)
-	// получения списка задач
-	route.Get("/api/tasks", h.handleGetTasks)
-	// получение задачи по id
-	route.Get("/api/task", h.handleGetTaskByID)
-	// изменение существующей задачи
-	route.Put("/api/task", h.handleUpdateTask)
-	// заверешение существующей задачи
-	route.Post("/api/task/done", h.handleTaskDone)
-	// удаление существующей задачи
-	route.Delete("/api/task", h.handleDeleteTask)
+	// r.Group(func(r chi.Router) {
+	//     r.Use(AuthMiddleware)
+	//     r.Post("/manage", CreateAsset)
+	// })
+	// аутентификация пользователя
+	route.Post("/api/sign", h.authUser)
+	route.Route("/api", func(r chi.Router) {
+		// получение следующей даты задачи
+		r.Get("/nextdate", h.nextDateSchedule)
+		// добавление задачи
+		r.Post("/task", h.handleAddTask)
+		// получения списка задач
+		r.Get("/tasks", h.handleGetTasks)
+		// получение задачи по id
+		r.Get("/task", h.handleGetTaskByID)
+		// изменение существующей задачи
+		r.Put("/task", h.handleUpdateTask)
+		// заверешение существующей задачи
+		r.Post("/task/done", h.handleTaskDone)
+		// удаление существующей задачи
+		r.Delete("/task", h.handleDeleteTask)
+	})
+
 }
 
 // nextDateSchedule обработчик для получения следующей даты задачи
@@ -133,14 +144,14 @@ func (q *queryNextDateParams) parsingFromQuery(r *http.Request) error {
 func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request) {
 	var (
 		buf       bytes.Buffer
+		cid       = uuid.New() // уникальный id для логов
 		ctx       = req.Context()
-		cid       = uuid.New().String() // уникальный id для логов
-		startTime = time.Now()          // время, относительно которого считается время выполнения запроса
+		startTime = time.Now() // время, относительно которого считается время выполнения запроса
 	)
 	// Чтение JSON из тела запроса
 	_, err := buf.ReadFrom(req.Body)
 	if err != nil {
-		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusBadRequest,
 				errors.Wrap(err, "Read from request body"),
@@ -152,7 +163,7 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 	// указатель на структуру новой задачи TaskDTO
 	taskDTO := new(task.CreateTaskDTO)
 	if err := taskDTO.UnmarshalJSONToStruct(buf.Bytes()); err != nil {
-		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusInternalServerError,
 				errors.Wrap(err, "Unmarshal JSON"),
@@ -163,7 +174,7 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 	// сервис
 	taskInserted, err := h.service.InsertNewTask(ctx, taskDTO)
 	if err != nil {
-		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusInternalServerError,
 				errors.Wrap(err, "service task"),
@@ -180,7 +191,7 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 	// получение JSON данных ответа, содержащего id созданной задачи
 	jsonData, err := json.Marshal(idResponse)
 	if err != nil {
-		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusInternalServerError,
 				errors.Wrap(err, "marshal JSON"),
@@ -189,9 +200,10 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, jsonData, time.Since(startTime), nil))
+	httpResponse.Success(w, httpResponse.NewLogInfo(cid.String(), req, jsonData, time.Since(startTime), nil))
 }
 
+// handleGetTasks обработчик для получения задач
 func (h *handleScheduler) handleGetTasks(w http.ResponseWriter, req *http.Request) {
 	var (
 		ctx         = req.Context()
@@ -283,6 +295,7 @@ func parseQueryParamsGetTasks(dest *queryGetTaskParams, r *http.Request) error {
 	return nil
 }
 
+// handleGetTaskByID обработчик для получения задачи по ID
 func (h *handleScheduler) handleGetTaskByID(w http.ResponseWriter, req *http.Request) {
 	var (
 		ctx       = req.Context()
@@ -326,6 +339,7 @@ func (h *handleScheduler) handleGetTaskByID(w http.ResponseWriter, req *http.Req
 	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, jsonData, time.Since(startTime), nil))
 }
 
+// handleUpdateTask обработчик для обновления задачи
 func (h *handleScheduler) handleUpdateTask(w http.ResponseWriter, req *http.Request) {
 	var (
 		buf       bytes.Buffer
@@ -370,6 +384,7 @@ func (h *handleScheduler) handleUpdateTask(w http.ResponseWriter, req *http.Requ
 	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, []byte(`{}`), time.Since(startTime), nil))
 }
 
+// handleTaskDone обработчик для завершения задачи
 func (h *handleScheduler) handleTaskDone(w http.ResponseWriter, req *http.Request) {
 	var (
 		ctx       = req.Context()
@@ -401,6 +416,7 @@ func (h *handleScheduler) handleTaskDone(w http.ResponseWriter, req *http.Reques
 	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, []byte(`{}`), time.Since(startTime), nil))
 }
 
+// handleDeleteTask обработчик для удаления задачи
 func (h *handleScheduler) handleDeleteTask(w http.ResponseWriter, req *http.Request) {
 	var (
 		ctx       = req.Context()
@@ -430,4 +446,80 @@ func (h *handleScheduler) handleDeleteTask(w http.ResponseWriter, req *http.Requ
 	}
 
 	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, []byte(`{}`), time.Since(startTime), nil))
+}
+
+// authUser аутентификация полльзователя по паролю
+func (h *handleScheduler) authUser(w http.ResponseWriter, req *http.Request) {
+	var (
+		buf bytes.Buffer
+		cid = uuid.New() // уникальный id для логов
+		// ctx       = req.Context()
+		startTime = time.Now() // время, относительно которого считается время выполнения запроса
+	)
+	// Чтение JSON из тела запроса
+	_, err := buf.ReadFrom(req.Body)
+	if err != nil {
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusBadRequest,
+				errors.Wrap(err, "Read from request body"),
+			),
+		))
+		return
+	}
+	defer req.Body.Close()
+	// анонимная структура для хранения пароля из запроса
+	password := struct {
+		Val string `json:"password"`
+	}{}
+	// десериализация пароля
+	if err := json.Unmarshal(buf.Bytes(), &password); err != nil {
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "Unmarshal JSON"),
+			),
+		))
+		return
+	}
+	// проверка пароля
+	if password.Val != os.Getenv("TODO_PASSWORD") {
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusUnauthorized,
+				httpResponse.ErrUnAuth,
+			),
+		))
+		return
+	}
+	// создание токена
+	tokenStr, err := pkg.CreateToken()
+	if err != nil {
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "Authorization"),
+			),
+		))
+		return
+	}
+	// анонимная структура, содержащая token
+	tokenResponse := struct {
+		Val string `json:"token"`
+	}{
+		Val: tokenStr,
+	}
+	// получение JSON данных ответа, содержащего токен
+	jsonData, err := json.Marshal(tokenResponse)
+	if err != nil {
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+			httpResponse.NewError(
+				http.StatusInternalServerError,
+				errors.Wrap(err, "marshal JSON"),
+			),
+		))
+		return
+	}
+
+	httpResponse.Success(w, httpResponse.NewLogInfo(cid.String(), req, jsonData, time.Since(startTime), nil))
 }

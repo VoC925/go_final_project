@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"database/sql"
 	"net/http"
 	"os"
 	"strings"
@@ -10,16 +9,23 @@ import (
 	"github.com/VoC925/go_final_project/service/internal/domain/task"
 	"github.com/go-chi/chi/v5"
 	"github.com/pkg/errors"
+	"github.com/pressly/goose/v3"
 	"github.com/sirupsen/logrus"
+
 	_ "modernc.org/sqlite"
 )
 
+// структура приложения
 type App struct {
-	server  *http.Server
+	// структура сервера
+	server *http.Server
+	// интерфейс БД
 	storage task.Storage
-	quitCh  chan struct{}
+	// канал завершения работы приложения
+	quitCh chan struct{}
 }
 
+// NewApp создает структуру приложения и привязывает его работу к порту addr
 func NewApp(addr string) (*App, error) {
 	// БД
 	storageTask, err := task.NewSQLiteDB()
@@ -32,6 +38,7 @@ func NewApp(addr string) (*App, error) {
 	// хендлеры
 	route := chi.NewRouter()
 	handlerTask := NewHandler(serviceTask)
+	// регистрация хендлеров в роутере chi
 	handlerTask.Register(route)
 
 	return &App{
@@ -44,15 +51,16 @@ func NewApp(addr string) (*App, error) {
 	}, nil
 }
 
+// Start запускает приложение на порту, переданном при инициализации в NewApp()
 func (s *App) Start() error {
 	var (
-		errApp error
+		errApp error // ошибка возникающия при работе сервера
 	)
-
+	// создание БД и миграции
 	if err := s.createAndMigrateDb(); err != nil {
 		return errors.Wrap(err, "checkAndMigrateDb method failed")
 	}
-
+	// горутина для запуска сервера
 	go func() {
 		logrus.WithFields(logrus.Fields{
 			"ListenAddr": s.server.Addr,
@@ -63,22 +71,20 @@ func (s *App) Start() error {
 			close(s.quitCh)
 		}
 	}()
-
+	// канал, ждущий завершения работы приложения
 	<-s.quitCh
-<<<<<<< HEAD
-=======
-	logrus.Debug("App stoppped")
->>>>>>> 8ef3d85ee455a7f6bb98fc1c50b2e6d0efa559c5
 	return errApp
 }
 
 // Stop останавливает работу сервиса
 func (s *App) Stop() {
 	logrus.Debug("stop signal registered")
+	// завершение работы сервера
 	if err := s.server.Shutdown(context.Background()); err != nil {
 		logrus.Errorf("stop server: %s", err.Error())
 	}
 	logrus.Debug("server stopped")
+	// отключение от БД
 	if err := s.storage.DissconecteDB(); err != nil {
 		logrus.Errorf("close DB: %s", err.Error())
 	}
@@ -86,33 +92,39 @@ func (s *App) Stop() {
 	close(s.quitCh)
 }
 
+// createAndMigrateDb создает БД и применяет миграции к ней
 func (s *App) createAndMigrateDb() error {
 	pathToDB := os.Getenv("TODO_DBFILE")
-	dbFile, err := sql.Open("sqlite", pathToDB)
+	// открытие БД для дальнейших миграций
+	db, err := goose.OpenDBWithDriver("sqlite", pathToDB)
 	if err != nil {
-		return errors.Wrap(err, "Open SQLite DB")
+		logrus.Errorf("DB open to migrate: %s", err.Error())
+		return errors.Wrap(err, "DB open to migrate")
 	}
-	defer dbFile.Close()
+	logrus.Debug("DB opened successfully")
 
-	// создание таблицы tasks
-	res, err := dbFile.Exec(`CREATE TABLE IF NOT EXISTS scheduler (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	date VARCHAR(8) NOT NULL DEFAULT "",
-	title VARCHAR(128) NOT NULL DEFAULT "",
-	comment TEXT NOT NULL DEFAULT "",
-	repeat VARCHAR(128) NOT NULL DEFAULT ""
-);
-CREATE INDEX IF NOT EXISTS scheduler_date ON scheduler (date);`)
-
-	if err != nil {
-		return errors.Wrap(err, "DB Query")
+	defer func() {
+		if err := db.Close(); err != nil {
+			logrus.Errorf("DB close: %s", err.Error())
+			return
+		}
+		logrus.Debug("DB closed successfully")
+	}()
+	// проверка на уже существующие миграции БД
+	// метод возвращает id миграции и nil в случае
+	// уже существующих миграций
+	_, err = goose.EnsureDBVersion(db)
+	if err == nil {
+		logrus.Debug("Migration of DB done already")
+		return nil
 	}
-	r, err := res.RowsAffected()
+	// Выполняем миграции
+	err = goose.Up(db, "./migrations")
 	if err != nil {
+		logrus.Errorf("DB migration: %s", err.Error())
 		return err
 	}
-	if r != 0 {
-		logrus.Info("Migration Up of DB successfully done")
-	}
+	logrus.Debug("Migration Up of DB successfully done")
+
 	return nil
 }

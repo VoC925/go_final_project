@@ -14,11 +14,17 @@ import (
 
 // интерфейс БД
 type Storage interface {
+	// добавление в БД
 	Insert(context.Context, *CreateTaskDTO) (string, error)
+	// поиск в БД по параметрам
 	Find(ctx context.Context, offset int, limit int, search string) ([]*Task, error)
+	// поиск в БД по ID
 	FindByParamID(context.Context, string) (*Task, error)
+	// обновление в БД
 	Update(context.Context, *Task) error
+	// удаление в БД по ID
 	Delete(context.Context, string) error
+	// отключение соединения БД
 	DissconecteDB() error
 }
 
@@ -43,6 +49,7 @@ func NewSQLiteDB() (Storage, error) {
 	}, nil
 }
 
+// DissconecteDB разрывает текущее соединение к БД
 func (s *storageTask) DissconecteDB() error {
 	if err := s.db.Close(); err != nil {
 		return err
@@ -170,6 +177,7 @@ func searchIsTime(s string) (string, bool) {
 	return "", false
 }
 
+// FindByParamID поиск задачи по ID
 func (s *storageTask) FindByParamID(ctx context.Context, id string) (*Task, error) {
 	logrus.WithFields(logrus.Fields{
 		"id": id,
@@ -190,6 +198,7 @@ WHERE id = :paramVal;`
 	return t, nil
 }
 
+// Update обновление задачи
 func (s *storageTask) Update(ctx context.Context, task *Task) error {
 	logrus.WithFields(logrus.Fields{
 		"task": task.String(),
@@ -217,6 +226,7 @@ WHERE id = :idVal;`
 	return nil
 }
 
+// Delete удаление задачи из БД
 func (s *storageTask) Delete(ctx context.Context, id string) error {
 	logrus.WithFields(logrus.Fields{
 		"id": id,

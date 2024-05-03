@@ -84,6 +84,7 @@ func (s *serviceTask) FindTaskByParam(ctx context.Context, param string) (*Task,
 	return task, nil
 }
 
+// UpdateTask метод для обновления текущей задачи
 func (s *serviceTask) UpdateTask(ctx context.Context, task *Task) error {
 	// валидация данных структуры Task
 	if err := task.Validate(); err != nil {
@@ -100,6 +101,7 @@ func (s *serviceTask) UpdateTask(ctx context.Context, task *Task) error {
 	return nil
 }
 
+// TaskDone метод для завершения текущей задачи
 func (s *serviceTask) TaskDone(ctx context.Context, id string) error {
 	// получение задачи по ID из БД
 	task, err := s.FindTaskByParam(ctx, id)
@@ -130,6 +132,7 @@ func (s *serviceTask) TaskDone(ctx context.Context, id string) error {
 	return nil
 }
 
+// DeleteTask метод для удаления текущей задачи
 func (s *serviceTask) DeleteTask(ctx context.Context, id string) error {
 	// запрос к БД на удаление
 	err := s.db.Delete(ctx, id)
