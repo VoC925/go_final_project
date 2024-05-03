@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"os"
@@ -14,8 +15,9 @@ import (
 )
 
 type App struct {
-	server *http.Server
-	quitCh chan struct{}
+	server  *http.Server
+	storage task.Storage
+	quitCh  chan struct{}
 }
 
 func NewApp(addr string) (*App, error) {
@@ -37,7 +39,8 @@ func NewApp(addr string) (*App, error) {
 			Addr:    strings.Join([]string{":", addr}, ""),
 			Handler: route,
 		},
-		quitCh: make(chan struct{}),
+		storage: storageTask,
+		quitCh:  make(chan struct{}),
 	}, nil
 }
 
@@ -54,19 +57,28 @@ func (s *App) Start() error {
 		logrus.WithFields(logrus.Fields{
 			"ListenAddr": s.server.Addr,
 		}).Info("server start")
-		if err := s.server.ListenAndServe(); err != nil {
+		if err := s.server.ListenAndServe(); err != http.ErrServerClosed {
+			logrus.Error(err)
 			errApp = err
 			close(s.quitCh)
 		}
 	}()
 
 	<-s.quitCh
-
 	return errApp
 }
 
 // Stop останавливает работу сервиса
 func (s *App) Stop() {
+	logrus.Debug("stop signal registered")
+	if err := s.server.Shutdown(context.Background()); err != nil {
+		logrus.Errorf("stop server: %s", err.Error())
+	}
+	logrus.Debug("server stopped")
+	if err := s.storage.DissconecteDB(); err != nil {
+		logrus.Errorf("close DB: %s", err.Error())
+	}
+	logrus.Debug("DB closed successfully")
 	close(s.quitCh)
 }
 

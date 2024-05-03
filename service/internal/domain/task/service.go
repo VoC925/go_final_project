@@ -65,6 +65,7 @@ func (s *serviceTask) FindTasks(ctx context.Context, offset int, limit int, sear
 		return nil, errors.Wrap(err, "find in DB")
 	}
 	if tasks == nil {
+		logrus.Debug("no data found in DB")
 		return []*Task{}, nil
 	}
 	return tasks, nil
