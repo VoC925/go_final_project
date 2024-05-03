@@ -65,6 +65,10 @@ func (s *App) Start() error {
 	}()
 
 	<-s.quitCh
+<<<<<<< HEAD
+=======
+	logrus.Debug("App stoppped")
+>>>>>>> 8ef3d85ee455a7f6bb98fc1c50b2e6d0efa559c5
 	return errApp
 }
 
