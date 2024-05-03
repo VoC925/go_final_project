@@ -9,6 +9,7 @@ import (
 
 	"github.com/VoC925/go_final_project/service/internal/httpResponse"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 )
 
 // структура для разделения параметра repeat
@@ -92,6 +93,10 @@ type CreateTaskDTO struct {
 	Repeat  string `json:"repeat"`
 }
 
+func (t *CreateTaskDTO) String() string {
+	return fmt.Sprintf("date: %s | title: %s | comment: %s | repeat : %s", t.Date, t.Title, t.Comment, t.Repeat)
+}
+
 // UnmarshalJSONToStruct десериализует данные из JSON в структуру TaskDTO
 func (q *CreateTaskDTO) UnmarshalJSONToStruct(data []byte) error {
 	var taskDTO CreateTaskDTO
@@ -136,6 +141,9 @@ func (q *CreateTaskDTO) Validate() error {
 			}
 		}
 	}
+	logrus.WithFields(logrus.Fields{
+		"task": q.String(),
+	}).Debug("validate data success")
 	return nil
 }
 
@@ -146,6 +154,10 @@ type Task struct {
 	Title   string `json:"title"`   // название задачи
 	Comment string `json:"comment"` // дополнительный текст задачи
 	Repeat  string `json:"repeat"`  // периодичность выполнения задачи
+}
+
+func (t *Task) String() string {
+	return fmt.Sprintf("id: %s | date: %s | title: %s | comment: %s | repeat : %s", t.ID, t.Date, t.Title, t.Comment, t.Repeat)
 }
 
 // UnmarshalJSONToStruct десериализует данные из JSON в структуру Task
@@ -183,6 +195,9 @@ func (t *Task) Validate() error {
 	if err := d.validateStruct(t); err != nil {
 		return err
 	}
+	logrus.WithFields(logrus.Fields{
+		"task": t.String(),
+	}).Debug("validate data success")
 	return nil
 }
 

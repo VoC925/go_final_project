@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"os/signal"
 
@@ -30,9 +29,7 @@ func main() {
 
 	// горутина для запуска сервиса
 	go func() {
-		fmt.Println("---APP STARTED---")
 		if err := app.Start(); err != nil {
-			logrus.Error(err)
 			close(quitCh)
 		}
 	}()
@@ -45,7 +42,6 @@ func main() {
 	}()
 
 	<-quitCh
-	fmt.Println("---APP STOPED---")
 }
 
 func init() {
