@@ -51,17 +51,17 @@ func (h *handleScheduler) Register(route *chi.Mux) {
 		// получение следующей даты задачи
 		r.Get("/nextdate", h.nextDateSchedule)
 		// добавление задачи
-		r.Post("/task", h.handleAddTask)
+		r.Post("/task", auth(h.handleAddTask))
 		// получения списка задач
-		r.Get("/tasks", h.handleGetTasks)
+		r.Get("/tasks", auth(h.handleGetTasks))
 		// получение задачи по id
-		r.Get("/task", h.handleGetTaskByID)
+		r.Get("/task", auth(h.handleGetTaskByID))
 		// изменение существующей задачи
-		r.Put("/task", h.handleUpdateTask)
+		r.Put("/task", auth(h.handleUpdateTask))
 		// заверешение существующей задачи
-		r.Post("/task/done", h.handleTaskDone)
+		r.Post("/task/done", auth(h.handleTaskDone))
 		// удаление существующей задачи
-		r.Delete("/task", h.handleDeleteTask)
+		r.Delete("/task", auth(h.handleDeleteTask))
 	})
 
 }
@@ -484,6 +484,7 @@ func (h *handleScheduler) authUser(w http.ResponseWriter, req *http.Request) {
 	}
 	// проверка пароля
 	if password.Val != os.Getenv("TODO_PASSWORD") {
+		logrus.Debug("incorrect password from request")
 		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusUnauthorized,
@@ -492,9 +493,11 @@ func (h *handleScheduler) authUser(w http.ResponseWriter, req *http.Request) {
 		))
 		return
 	}
+	logrus.Debug("password from request matched")
 	// создание токена
-	tokenStr, err := pkg.CreateToken()
+	tokenStr, err := pkg.CreateToken(password.Val)
 	if err != nil {
+		logrus.Debug("can't create token")
 		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusInternalServerError,
@@ -503,6 +506,9 @@ func (h *handleScheduler) authUser(w http.ResponseWriter, req *http.Request) {
 		))
 		return
 	}
+	logrus.WithFields(logrus.Fields{
+		"token": tokenStr,
+	}).Debug("token created successfully")
 	// анонимная структура, содержащая token
 	tokenResponse := struct {
 		Val string `json:"token"`

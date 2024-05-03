@@ -56,7 +56,10 @@ func init() {
 	}
 
 	logrus.WithFields(logrus.Fields{
-		"TODO_PORT":   os.Getenv("TODO_PORT"),
-		"TODO_DBFILE": os.Getenv("TODO_DBFILE"),
+		"TODO_PORT":          os.Getenv("TODO_PORT"),
+		"TODO_DBFILE":        os.Getenv("TODO_DBFILE"),
+		"IS_DEBUG_LOG_LEVEL": os.Getenv("IS_DEBUG_LOG_LEVEL"),
+		"TODO_PASSWORD":      os.Getenv("TODO_PASSWORD"),
+		"JWT_SECRET":         os.Getenv("JWT_SECRET"),
 	}).Debug("environment variable")
 }

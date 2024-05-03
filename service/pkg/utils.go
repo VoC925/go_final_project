@@ -3,27 +3,28 @@ package pkg
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-)
-
-const (
-	lifeTimeToken = time.Hour * 5
+	"golang.org/x/crypto/bcrypt"
 )
 
 // создание токена
-func CreateToken() (string, error) {
+func CreateToken(str string) (string, error) {
+	// получение хэша пароля
+	hesh, err := GeneratehashFromString(str)
+	if err != nil {
+		return "", err
+	}
 	// payload
 	claims := jwt.MapClaims{
-		"expires": time.Now().Add(lifeTimeToken).Unix(), // время жизни токена
+		"hesh": hesh, // хэш пароля
 	}
 	// token
 	token := jwt.NewWithClaims(
 		jwt.SigningMethodHS256,
 		claims,
 	)
-	// ключ
+	// ключ из env
 	key := os.Getenv("JWT_SECRET")
 	// signing token
 	tokenStr, err := token.SignedString([]byte(key))
@@ -31,4 +32,21 @@ func CreateToken() (string, error) {
 		return "", fmt.Errorf("failed to sign token with secret key")
 	}
 	return tokenStr, nil
+}
+
+// GeneratehashFromString создает хэш на основе строки используя алгоритм пакета bcrypt
+func GeneratehashFromString(str string) (string, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(str), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hashedPassword), nil
+}
+
+// IsValidHash проверяет соответсвие пароля и хеша
+func IsValidHash(hash string, password string) bool {
+	if err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)); err != nil {
+		return false
+	}
+	return true
 }
