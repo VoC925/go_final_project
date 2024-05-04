@@ -60,7 +60,8 @@ func (s *storageTask) DissconecteDB() error {
 // Insert метод добавления новой задачи в БД
 func (s *storageTask) Insert(ctx context.Context, task *CreateTaskDTO) (string, error) {
 	logrus.WithFields(logrus.Fields{
-		"task": task.String(),
+		"log_uuid": ctx.Value("log_uuid").(string),
+		"task":     task.String(),
 	}).Debug("sqlite request INSERT")
 
 	q := `INSERT INTO scheduler (date, title, comment, repeat)
@@ -78,7 +79,8 @@ VALUES (:dateVal, :titleVal, :commentVal, :repeatVal);`
 		return "", err
 	}
 	logrus.WithFields(logrus.Fields{
-		"task id": id,
+		"log_uuid": ctx.Value("log_uuid").(string),
+		"task id":  id,
 	}).Debug("sqlite request INSERT success")
 	return fmt.Sprint(id), nil
 }
@@ -91,9 +93,10 @@ func (s *storageTask) Find(ctx context.Context, offset int, limit int, search st
 		tasks []*Task   // слайс задач
 	)
 	logrus.WithFields(logrus.Fields{
-		"offset": offset,
-		"limit":  limit,
-		"search": search,
+		"log_uuid": ctx.Value("log_uuid").(string),
+		"offset":   offset,
+		"limit":    limit,
+		"search":   search,
 	}).Debug("sqlite request SELECT")
 
 	if search == "" {
@@ -158,6 +161,7 @@ LIMIT :limitVal;`
 		return nil, err
 	}
 	logrus.WithFields(logrus.Fields{
+		"log_uuid":    ctx.Value("log_uuid").(string),
 		"found tasks": len(tasks),
 	}).Debug("sqlite request SELECT success")
 	return tasks, nil
@@ -180,7 +184,8 @@ func searchIsTime(s string) (string, bool) {
 // FindByParamID поиск задачи по ID
 func (s *storageTask) FindByParamID(ctx context.Context, id string) (*Task, error) {
 	logrus.WithFields(logrus.Fields{
-		"id": id,
+		"log_uuid": ctx.Value("log_uuid").(string),
+		"id":       id,
 	}).Debug("sqlite request SELECT")
 	q := `SELECT *
 FROM scheduler
@@ -194,14 +199,17 @@ WHERE id = :paramVal;`
 	if err != nil {
 		return nil, err
 	}
-	logrus.Debug("sqlite request SELECT success")
+	logrus.WithFields(logrus.Fields{
+		"log_uuid": ctx.Value("log_uuid").(string),
+	}).Debug("sqlite request SELECT success")
 	return t, nil
 }
 
 // Update обновление задачи
 func (s *storageTask) Update(ctx context.Context, task *Task) error {
 	logrus.WithFields(logrus.Fields{
-		"task": task.String(),
+		"log_uuid": ctx.Value("log_uuid").(string),
+		"task":     task.String(),
 	}).Debug("sqlite request UPDATE")
 	q := `UPDATE scheduler
 SET date = :dateVal, title = :titleVal, comment = :commentVal, repeat = :repeatVal 
@@ -222,14 +230,17 @@ WHERE id = :idVal;`
 	if rowsAffected == 0 {
 		return httpResponse.ErrNoData
 	}
-	logrus.Debug("sqlite request UPDATE success")
+	logrus.WithFields(logrus.Fields{
+		"log_uuid": ctx.Value("log_uuid").(string),
+	}).Debug("sqlite request UPDATE success")
 	return nil
 }
 
 // Delete удаление задачи из БД
 func (s *storageTask) Delete(ctx context.Context, id string) error {
 	logrus.WithFields(logrus.Fields{
-		"id": id,
+		"log_uuid": ctx.Value("log_uuid").(string),
+		"id":       id,
 	}).Debug("sqlite request DELETE")
 	q := `DELETE FROM scheduler WHERE id=:idVal;`
 	res, err := s.db.ExecContext(ctx, q, sql.Named("idVal", id))
@@ -243,6 +254,8 @@ func (s *storageTask) Delete(ctx context.Context, id string) error {
 	if rowsAffected == 0 {
 		return httpResponse.ErrNoData
 	}
-	logrus.Debug("sqlite request DELETE success")
+	logrus.WithFields(logrus.Fields{
+		"log_uuid": ctx.Value("log_uuid").(string),
+	}).Debug("sqlite request DELETE success")
 	return nil
 }

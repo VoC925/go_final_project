@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -9,15 +10,19 @@ import (
 	"github.com/VoC925/go_final_project/service/internal/httpResponse"
 	"github.com/VoC925/go_final_project/service/pkg"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
+// auth - middleware для аутентификации пользователя
 func auth(next http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		startTime := time.Now()
-		pass := os.Getenv("TODO_PASSWORD")
-		var jwt string // JWT-токен из куки
+		var (
+			startTime = time.Now()
+			pass      = os.Getenv("TODO_PASSWORD")
+			jwt       string // JWT-токен из куки
+		)
 		// получаем куку
 		cookie, err := r.Cookie("token")
 		if err == nil {
@@ -57,20 +62,6 @@ func auth(next http.HandlerFunc) http.HandlerFunc {
 			))
 			return
 		}
-		// проверка expires
-		if time.Now().After(cookie.Expires) {
-			logrus.WithFields(logrus.Fields{
-				"token expires": cookie.Expires.Format(time.DateTime),
-				"time now":      time.Now().Format(time.DateTime),
-			}).Debug("token invalid")
-			httpResponse.Error(w, httpResponse.NewLogInfo("auth", r, nil, time.Since(startTime),
-				httpResponse.NewError(
-					http.StatusUnauthorized,
-					errors.Wrap(err, "token already expires"),
-				),
-			))
-			return
-		}
 		logrus.Debug("token validated successfully")
 		next(w, r)
 	})
@@ -95,4 +86,13 @@ func validateJWTToken(tokenStr string) (jwt.MapClaims, error) {
 		return nil, fmt.Errorf("Anauthorized")
 	}
 	return claims, nil
+}
+
+// logUUID - middleware для формирования уникального ID для логирования
+func logUUID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cid := uuid.New()
+		ctx := context.WithValue(r.Context(), "log_uuid", cid.String())
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }

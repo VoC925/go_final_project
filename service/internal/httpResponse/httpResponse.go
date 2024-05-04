@@ -78,8 +78,9 @@ func Error(w http.ResponseWriter, info *logInfo) {
 	// лсслучай когда ошибка - ошибка аутентификации
 	if info.err.Code == "401" {
 		msg.Msg = "Ошибка аутентификации"
+	} else {
+		msg.Msg = "Произошла ошибка при обработке вашего запроса"
 	}
-	msg.Msg = "Произошла ошибка при обработке вашего запроса"
 	// сереализация ошибки
 	jsonErr, err := json.Marshal(msg)
 	if err != nil {

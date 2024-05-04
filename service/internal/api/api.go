@@ -89,6 +89,7 @@ func (s *App) Stop() {
 		logrus.Errorf("close DB: %s", err.Error())
 	}
 	logrus.Debug("DB closed successfully")
+	logrus.Info("App stopped")
 	close(s.quitCh)
 }
 
@@ -101,14 +102,14 @@ func (s *App) createAndMigrateDb() error {
 		logrus.Errorf("DB open to migrate: %s", err.Error())
 		return errors.Wrap(err, "DB open to migrate")
 	}
-	logrus.Debug("DB opened successfully")
+	logrus.Debug("DB opened for migration successfully")
 
 	defer func() {
 		if err := db.Close(); err != nil {
 			logrus.Errorf("DB close: %s", err.Error())
 			return
 		}
-		logrus.Debug("DB closed successfully")
+		logrus.Debug("DB for migration closed successfully")
 	}()
 	// проверка на уже существующие миграции БД
 	// метод возвращает id миграции и nil в случае

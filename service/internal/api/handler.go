@@ -12,7 +12,6 @@ import (
 	"github.com/VoC925/go_final_project/service/internal/httpResponse"
 	"github.com/VoC925/go_final_project/service/pkg"
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
@@ -39,14 +38,12 @@ func NewHandler(s task.Service) handleRegister {
 }
 
 func (h *handleScheduler) Register(route *chi.Mux) {
+	// middleware для формирования уникального id для логов, для всех запросов
+	route.Use(logUUID)
 	// загрузка фронтенда
 	route.Handle("/*", http.FileServer(http.Dir(webDir)))
-	// r.Group(func(r chi.Router) {
-	//     r.Use(AuthMiddleware)
-	//     r.Post("/manage", CreateAsset)
-	// })
 	// аутентификация пользователя
-	route.Post("/api/sign", h.authUser)
+	route.Post("/api/signin", h.authUser)
 	route.Route("/api", func(r chi.Router) {
 		// получение следующей даты задачи
 		r.Get("/nextdate", h.nextDateSchedule)
@@ -69,8 +66,8 @@ func (h *handleScheduler) Register(route *chi.Mux) {
 // nextDateSchedule обработчик для получения следующей даты задачи
 func (h *handleScheduler) nextDateSchedule(w http.ResponseWriter, req *http.Request) {
 	var (
-		cid       = uuid.New().String() // уникальный id для логов
-		startTime = time.Now()          // время, относительно которого считается время выполнения запроса
+		cid       = req.Context().Value("log_uuid").(string) // уникальный id для логов
+		startTime = time.Now()                               // время, относительно которого считается время выполнения запроса
 	)
 	// парсинг параметров запроса
 	var queryParams queryNextDateParams
@@ -144,14 +141,14 @@ func (q *queryNextDateParams) parsingFromQuery(r *http.Request) error {
 func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request) {
 	var (
 		buf       bytes.Buffer
-		cid       = uuid.New() // уникальный id для логов
+		cid       = req.Context().Value("log_uuid").(string) // уникальный id для логов
 		ctx       = req.Context()
 		startTime = time.Now() // время, относительно которого считается время выполнения запроса
 	)
 	// Чтение JSON из тела запроса
 	_, err := buf.ReadFrom(req.Body)
 	if err != nil {
-		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusBadRequest,
 				errors.Wrap(err, "Read from request body"),
@@ -163,7 +160,7 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 	// указатель на структуру новой задачи TaskDTO
 	taskDTO := new(task.CreateTaskDTO)
 	if err := taskDTO.UnmarshalJSONToStruct(buf.Bytes()); err != nil {
-		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusInternalServerError,
 				errors.Wrap(err, "Unmarshal JSON"),
@@ -174,7 +171,7 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 	// сервис
 	taskInserted, err := h.service.InsertNewTask(ctx, taskDTO)
 	if err != nil {
-		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusInternalServerError,
 				errors.Wrap(err, "service task"),
@@ -191,7 +188,7 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 	// получение JSON данных ответа, содержащего id созданной задачи
 	jsonData, err := json.Marshal(idResponse)
 	if err != nil {
-		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusInternalServerError,
 				errors.Wrap(err, "marshal JSON"),
@@ -200,16 +197,16 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 		return
 	}
 
-	httpResponse.Success(w, httpResponse.NewLogInfo(cid.String(), req, jsonData, time.Since(startTime), nil))
+	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, jsonData, time.Since(startTime), nil))
 }
 
 // handleGetTasks обработчик для получения задач
 func (h *handleScheduler) handleGetTasks(w http.ResponseWriter, req *http.Request) {
 	var (
 		ctx         = req.Context()
+		cid         = req.Context().Value("log_uuid").(string) // уникальный id для логов
 		queryParams queryGetTaskParams
-		cid         = uuid.New().String() // уникальный id для логов
-		startTime   = time.Now()          // время, относительно которого считается время выполнения запроса
+		startTime   = time.Now() // время, относительно которого считается время выполнения запроса
 	)
 	// парсинг параметров запроса
 	if err := parseQueryParamsGetTasks(&queryParams, req); err != nil {
@@ -299,8 +296,8 @@ func parseQueryParamsGetTasks(dest *queryGetTaskParams, r *http.Request) error {
 func (h *handleScheduler) handleGetTaskByID(w http.ResponseWriter, req *http.Request) {
 	var (
 		ctx       = req.Context()
-		cid       = uuid.New().String() // уникальный id для логов
-		startTime = time.Now()          // время, относительно которого считается время выполнения запроса
+		cid       = req.Context().Value("log_uuid").(string) // уникальный id для логов
+		startTime = time.Now()                               // время, относительно которого считается время выполнения запроса
 	)
 	// парсинг ID парметра
 	idQuery := req.FormValue("id")
@@ -344,8 +341,8 @@ func (h *handleScheduler) handleUpdateTask(w http.ResponseWriter, req *http.Requ
 	var (
 		buf       bytes.Buffer
 		ctx       = req.Context()
-		cid       = uuid.New().String() // уникальный id для логов
-		startTime = time.Now()          // время, относительно которого считается время выполнения запроса
+		cid       = req.Context().Value("log_uuid").(string) // уникальный id для логов
+		startTime = time.Now()                               // время, относительно которого считается время выполнения запроса
 	)
 	// Чтение JSON из тела запроса
 	_, err := buf.ReadFrom(req.Body)
@@ -388,8 +385,8 @@ func (h *handleScheduler) handleUpdateTask(w http.ResponseWriter, req *http.Requ
 func (h *handleScheduler) handleTaskDone(w http.ResponseWriter, req *http.Request) {
 	var (
 		ctx       = req.Context()
-		cid       = uuid.New().String() // уникальный id для логов
-		startTime = time.Now()          // время, относительно которого считается время выполнения запроса
+		cid       = req.Context().Value("log_uuid").(string) // уникальный id для логов
+		startTime = time.Now()                               // время, относительно которого считается время выполнения запроса
 	)
 	// парсинг ID параметра
 	idQuery := req.FormValue("id")
@@ -420,8 +417,8 @@ func (h *handleScheduler) handleTaskDone(w http.ResponseWriter, req *http.Reques
 func (h *handleScheduler) handleDeleteTask(w http.ResponseWriter, req *http.Request) {
 	var (
 		ctx       = req.Context()
-		cid       = uuid.New().String() // уникальный id для логов
-		startTime = time.Now()          // время, относительно которого считается время выполнения запроса
+		cid       = req.Context().Value("log_uuid").(string) // уникальный id для логов
+		startTime = time.Now()                               // время, относительно которого считается время выполнения запроса
 	)
 	// парсинг ID параметра
 	idQuery := req.FormValue("id")
@@ -451,15 +448,14 @@ func (h *handleScheduler) handleDeleteTask(w http.ResponseWriter, req *http.Requ
 // authUser аутентификация полльзователя по паролю
 func (h *handleScheduler) authUser(w http.ResponseWriter, req *http.Request) {
 	var (
-		buf bytes.Buffer
-		cid = uuid.New() // уникальный id для логов
-		// ctx       = req.Context()
-		startTime = time.Now() // время, относительно которого считается время выполнения запроса
+		buf       bytes.Buffer
+		cid       = req.Context().Value("log_uuid").(string) // уникальный id для логов
+		startTime = time.Now()                               // время, относительно которого считается время выполнения запроса
 	)
 	// Чтение JSON из тела запроса
 	_, err := buf.ReadFrom(req.Body)
 	if err != nil {
-		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusBadRequest,
 				errors.Wrap(err, "Read from request body"),
@@ -474,7 +470,7 @@ func (h *handleScheduler) authUser(w http.ResponseWriter, req *http.Request) {
 	}{}
 	// десериализация пароля
 	if err := json.Unmarshal(buf.Bytes(), &password); err != nil {
-		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusInternalServerError,
 				errors.Wrap(err, "Unmarshal JSON"),
@@ -485,7 +481,7 @@ func (h *handleScheduler) authUser(w http.ResponseWriter, req *http.Request) {
 	// проверка пароля
 	if password.Val != os.Getenv("TODO_PASSWORD") {
 		logrus.Debug("incorrect password from request")
-		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusUnauthorized,
 				httpResponse.ErrUnAuth,
@@ -493,12 +489,14 @@ func (h *handleScheduler) authUser(w http.ResponseWriter, req *http.Request) {
 		))
 		return
 	}
-	logrus.Debug("password from request matched")
+	logrus.WithFields(logrus.Fields{
+		"log_uuid": cid,
+	}).Debug("password from request matched")
 	// создание токена
 	tokenStr, err := pkg.CreateToken(password.Val)
 	if err != nil {
 		logrus.Debug("can't create token")
-		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusInternalServerError,
 				errors.Wrap(err, "Authorization"),
@@ -507,7 +505,8 @@ func (h *handleScheduler) authUser(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	logrus.WithFields(logrus.Fields{
-		"token": tokenStr,
+		"log_uuid": cid,
+		"token":    tokenStr,
 	}).Debug("token created successfully")
 	// анонимная структура, содержащая token
 	tokenResponse := struct {
@@ -518,7 +517,7 @@ func (h *handleScheduler) authUser(w http.ResponseWriter, req *http.Request) {
 	// получение JSON данных ответа, содержащего токен
 	jsonData, err := json.Marshal(tokenResponse)
 	if err != nil {
-		httpResponse.Error(w, httpResponse.NewLogInfo(cid.String(), req, nil, time.Since(startTime),
+		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
 			httpResponse.NewError(
 				http.StatusInternalServerError,
 				errors.Wrap(err, "marshal JSON"),
@@ -527,5 +526,5 @@ func (h *handleScheduler) authUser(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	httpResponse.Success(w, httpResponse.NewLogInfo(cid.String(), req, jsonData, time.Since(startTime), nil))
+	httpResponse.Success(w, httpResponse.NewLogInfo(cid, req, jsonData, time.Since(startTime), nil))
 }
