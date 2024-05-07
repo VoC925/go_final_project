@@ -169,7 +169,7 @@ func (h *handleScheduler) handleAddTask(w http.ResponseWriter, req *http.Request
 		return
 	}
 	// сервис
-	taskInserted, err := h.service.InsertNewTask(ctx, taskDTO)
+	taskInserted, err := h.service.AddTask(ctx, taskDTO)
 	if err != nil {
 		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
 			httpResponse.NewError(
@@ -219,7 +219,7 @@ func (h *handleScheduler) handleGetTasks(w http.ResponseWriter, req *http.Reques
 		return
 	}
 	// сервис
-	tasks, err := h.service.FindTasks(ctx, queryParams.Offest, queryParams.Limit, queryParams.Search)
+	tasks, err := h.service.GetTasks(ctx, queryParams.Offest, queryParams.Limit, queryParams.Search)
 	if err != nil {
 		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
 			httpResponse.NewError(
@@ -311,7 +311,7 @@ func (h *handleScheduler) handleGetTaskByID(w http.ResponseWriter, req *http.Req
 		return
 	}
 	// сервис
-	task, err := h.service.FindTaskByParam(ctx, idQuery)
+	task, err := h.service.GetTask(ctx, idQuery)
 	if err != nil {
 		httpResponse.Error(w, httpResponse.NewLogInfo(cid, req, nil, time.Since(startTime),
 			httpResponse.NewError(

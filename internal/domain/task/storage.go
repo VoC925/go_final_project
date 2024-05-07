@@ -25,7 +25,7 @@ type Storage interface {
 	// удаление в БД по ID
 	Delete(context.Context, string) error
 	// отключение соединения БД
-	DissconecteDB() error
+	Stop() error
 }
 
 type storageTask struct {
@@ -49,8 +49,8 @@ func NewSQLiteDB() (Storage, error) {
 	}, nil
 }
 
-// DissconecteDB разрывает текущее соединение к БД
-func (s *storageTask) DissconecteDB() error {
+// Stop разрывает текущее соединение к БД
+func (s *storageTask) Stop() error {
 	if err := s.db.Close(); err != nil {
 		return err
 	}
