@@ -13,11 +13,11 @@ import (
 // интерфейс сервиса для CRUD операций
 type Service interface {
 	// поиск по параметру
-	FindTaskByParam(context.Context, string) (*Task, error)
+	GetTask(context.Context, string) (*Task, error)
 	// Поиск задач
-	FindTasks(ctx context.Context, offset int, limit int, search string) ([]*Task, error)
+	GetTasks(ctx context.Context, offset int, limit int, search string) ([]*Task, error)
 	// Добавление новой задачи
-	InsertNewTask(context.Context, *CreateTaskDTO) (*Task, error)
+	AddTask(context.Context, *CreateTaskDTO) (*Task, error)
 	// Завершение задачи
 	TaskDone(context.Context, string) error
 	// Изменение данных существующей задачи Task
@@ -40,8 +40,8 @@ func NewService(db Storage) Service {
 	}
 }
 
-// InsertNewTask метод для добавления новой задачи
-func (s *serviceTask) InsertNewTask(ctx context.Context, dto *CreateTaskDTO) (*Task, error) {
+// AddTask метод для добавления новой задачи
+func (s *serviceTask) AddTask(ctx context.Context, dto *CreateTaskDTO) (*Task, error) {
 	// валидация данных task
 	if err := dto.Validate(); err != nil {
 		return nil, errors.Wrap(err, "validate request data")
@@ -57,8 +57,8 @@ func (s *serviceTask) InsertNewTask(ctx context.Context, dto *CreateTaskDTO) (*T
 	return newTask, nil
 }
 
-// FindTasks метод для поиска задач
-func (s *serviceTask) FindTasks(ctx context.Context, offset int, limit int, search string) ([]*Task, error) {
+// GetTasks метод для поиска задач
+func (s *serviceTask) GetTasks(ctx context.Context, offset int, limit int, search string) ([]*Task, error) {
 	// запрос к БД для поиска задач
 	tasks, err := s.db.Find(ctx, offset, limit, search)
 	if err != nil {
@@ -71,8 +71,8 @@ func (s *serviceTask) FindTasks(ctx context.Context, offset int, limit int, sear
 	return tasks, nil
 }
 
-// FindTaskByParam метод для поиска задачи по параметру
-func (s *serviceTask) FindTaskByParam(ctx context.Context, param string) (*Task, error) {
+// GetTask метод для поиска задачи по параметру
+func (s *serviceTask) GetTask(ctx context.Context, param string) (*Task, error) {
 	// запрос к БД для поиска задачи по параметру
 	task, err := s.db.FindByParamID(ctx, param)
 	if errors.Is(err, httpResponse.ErrNoData) {
@@ -104,7 +104,7 @@ func (s *serviceTask) UpdateTask(ctx context.Context, task *Task) error {
 // TaskDone метод для завершения текущей задачи
 func (s *serviceTask) TaskDone(ctx context.Context, id string) error {
 	// получение задачи по ID из БД
-	task, err := s.FindTaskByParam(ctx, id)
+	task, err := s.GetTask(ctx, id)
 	if err != nil {
 		return err
 	}
