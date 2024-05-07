@@ -84,7 +84,6 @@ func (s *App) Stop() {
 	}
 	logrus.Debug("DB closed successfully")
 	logrus.Info("App stopped")
-	// close(s.quitCh)
 }
 
 // createAndMigrateDb создает БД и применяет миграции к ней
