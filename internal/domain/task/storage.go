@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/VoC925/go_final_project/service/internal/httpResponse"
+	"github.com/VoC925/go_final_project/internal/httpResponse"
 	"github.com/sirupsen/logrus"
 )
 

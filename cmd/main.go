@@ -4,7 +4,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/VoC925/go_final_project/service/internal/api"
+	"github.com/VoC925/go_final_project/internal/api"
 	"github.com/joho/godotenv"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"

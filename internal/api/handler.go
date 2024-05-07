@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/VoC925/go_final_project/service/internal/domain/task"
-	"github.com/VoC925/go_final_project/service/internal/httpResponse"
-	"github.com/VoC925/go_final_project/service/pkg"
+	"github.com/VoC925/go_final_project/internal/domain/task"
+	"github.com/VoC925/go_final_project/internal/httpResponse"
+	"github.com/VoC925/go_final_project/pkg"
 	"github.com/go-chi/chi/v5"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"

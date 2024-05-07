@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/VoC925/go_final_project/service/internal/domain/task"
+	"github.com/VoC925/go_final_project/internal/domain/task"
 	"github.com/go-chi/chi/v5"
 	"github.com/pkg/errors"
 	"github.com/pressly/goose/v3"
